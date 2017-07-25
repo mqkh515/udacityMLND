@@ -1,9 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" />
-<title>customer_segments</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<title>customer_segments</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
 
 <style type="text/css">
@@ -13,8 +11,8 @@
 *
 */
 /*!
- * Bootstrap v3.3.6 (http://getbootstrap.com)
- * Copyright 2011-2015 Twitter, Inc.
+ * Bootstrap v3.3.7 (http://getbootstrap.com)
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  */
 /*! normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css */
@@ -1109,7 +1107,6 @@ a:focus {
   text-decoration: underline;
 }
 a:focus {
-  outline: thin dotted;
   outline: 5px auto -webkit-focus-ring-color;
   outline-offset: -2px;
 }
@@ -2538,7 +2535,6 @@ select[size] {
 input[type="file"]:focus,
 input[type="radio"]:focus,
 input[type="checkbox"]:focus {
-  outline: thin dotted;
   outline: 5px auto -webkit-focus-ring-color;
   outline-offset: -2px;
 }
@@ -3029,7 +3025,6 @@ select[multiple].input-lg {
 .btn.focus,
 .btn:active.focus,
 .btn.active.focus {
-  outline: thin dotted;
   outline: 5px auto -webkit-focus-ring-color;
   outline-offset: -2px;
 }
@@ -8760,6 +8755,9 @@ body > #header .header-bar {
     margin-left: 10px;
   }
 }
+[dir="rtl"] #ipython_notebook {
+  float: right !important;
+}
 #noscript {
   width: auto;
   padding-top: 16px;
@@ -8962,8 +8960,14 @@ span#login_widget > .button .badge,
  *
  * Author: Jupyter Development Team
  */
+[dir="rtl"] #tabs li {
+  float: right;
+}
 ul#tabs {
   margin-bottom: 4px;
+}
+[dir="rtl"] ul#tabs {
+  margin-right: 0px;
 }
 ul#tabs a {
   padding-top: 6px;
@@ -8986,6 +8990,16 @@ ul.breadcrumb span {
 }
 .list_toolbar .tree-buttons {
   padding-top: 1px;
+}
+[dir="rtl"] .list_toolbar .tree-buttons {
+  float: left !important;
+}
+[dir="rtl"] .list_toolbar .pull-right {
+  padding-top: 1px;
+  float: left !important;
+}
+[dir="rtl"] .list_toolbar .pull-left {
+  float: right !important;
 }
 .dynamic-buttons {
   padding-top: 3px;
@@ -9122,6 +9136,9 @@ ul.breadcrumb span {
 #tree-selector {
   padding-right: 0px;
 }
+[dir="rtl"] #tree-selector a {
+  float: right;
+}
 #button-select-all {
   min-width: 50px;
 }
@@ -9211,6 +9228,9 @@ ul#new-menu {
   left: auto;
   right: 0;
 }
+[dir="rtl"] #new-menu {
+  text-align: right;
+}
 .kernel-menu-icon {
   padding-right: 12px;
   width: 24px;
@@ -9255,6 +9275,9 @@ ul#new-menu {
 }
 #running .panel-group .panel .panel-body .list_container .list_item:last-child {
   border-bottom: 0px;
+}
+[dir="rtl"] #running .col-sm-8 {
+  float: right !important;
 }
 .delete-button {
   display: none;
@@ -9551,6 +9574,7 @@ div.cell.selected.jupyter-soft-selected {
   }
 }
 div.inner_cell {
+  min-width: 0;
   /* Old browsers */
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -9571,11 +9595,6 @@ div.inner_cell {
   box-flex: 1;
   /* Modern browsers */
   flex: 1;
-}
-@-moz-document url-prefix() {
-  div.inner_cell {
-    overflow-x: hidden;
-  }
 }
 /* input_area and input_prompt must match in top border and margin for alignment */
 div.input_area {
@@ -11246,7 +11265,7 @@ div#pager .ui-resizable-handle::after {
 }
 .shortcut_key {
   display: inline-block;
-  width: 20ex;
+  width: 21ex;
   text-align: right;
   font-family: monospace;
 }
@@ -11558,6 +11577,7 @@ ul.typeahead-list > li > a {
   box-shadow: 0px 0px 12px 1px rgba(87, 87, 87, 0.2);
 }
 .terminal-app .terminal {
+  width: 100%;
   float: left;
   font-family: monospace;
   color: white;
@@ -11571,6 +11591,9 @@ ul.typeahead-list > li > a {
 .terminal-app .terminal dummy-screen {
   line-height: 1em;
   font-size: 14px;
+}
+.terminal-app .terminal .xterm-rows {
+  padding: 10px;
 }
 .terminal-app .terminal-cursor {
   color: black;
@@ -11631,8 +11654,10 @@ ul.typeahead-list > li > a {
 .highlight .mh { color: #666666 } /* Literal.Number.Hex */
 .highlight .mi { color: #666666 } /* Literal.Number.Integer */
 .highlight .mo { color: #666666 } /* Literal.Number.Oct */
+.highlight .sa { color: #BA2121 } /* Literal.String.Affix */
 .highlight .sb { color: #BA2121 } /* Literal.String.Backtick */
 .highlight .sc { color: #BA2121 } /* Literal.String.Char */
+.highlight .dl { color: #BA2121 } /* Literal.String.Delimiter */
 .highlight .sd { color: #BA2121; font-style: italic } /* Literal.String.Doc */
 .highlight .s2 { color: #BA2121 } /* Literal.String.Double */
 .highlight .se { color: #BB6622; font-weight: bold } /* Literal.String.Escape */
@@ -11643,9 +11668,11 @@ ul.typeahead-list > li > a {
 .highlight .s1 { color: #BA2121 } /* Literal.String.Single */
 .highlight .ss { color: #19177C } /* Literal.String.Symbol */
 .highlight .bp { color: #008000 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #0000FF } /* Name.Function.Magic */
 .highlight .vc { color: #19177C } /* Name.Variable.Class */
 .highlight .vg { color: #19177C } /* Name.Variable.Global */
 .highlight .vi { color: #19177C } /* Name.Variable.Instance */
+.highlight .vm { color: #19177C } /* Name.Variable.Magic */
 .highlight .il { color: #666666 } /* Literal.Number.Integer.Long */
     </style>
 <style type="text/css">
@@ -11699,9 +11726,7 @@ body {
 div#notebook {
   overflow: visible;
   border-top: none;
-}
-
-@media print {
+}@media print {
   div.cell {
     display: block;
     page-break-inside: avoid;
@@ -11722,7 +11747,7 @@ div#notebook {
 
 <!-- Loading mathjax macro -->
 <!-- Load mathjax -->
-    <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS_HTML"></script>
     <!-- MathJax configuration -->
     <script type="text/x-mathjax-config">
     MathJax.Hub.Config({
@@ -11746,8 +11771,7 @@ div#notebook {
   <div tabindex="-1" id="notebook" class="border-box-sizing">
     <div class="container" id="notebook-container">
 
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11755,8 +11779,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11768,8 +11791,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11813,7 +11835,11 @@ div#notebook {
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Wholesale customers dataset has 440 samples with 6 features each.
 </pre>
@@ -11824,8 +11850,7 @@ div#notebook {
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11852,7 +11877,11 @@ div#notebook {
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -11952,8 +11981,7 @@ div#notebook {
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11984,14 +12012,22 @@ div#notebook {
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Chosen samples of wholesale customers dataset:
 </pre>
 </div>
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -12081,7 +12117,11 @@ div#notebook {
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -12136,8 +12176,7 @@ div#notebook {
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -12148,24 +12187,22 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
-<p><em>For each customer, to characterize its consuming behavior, I would make comparison among product categories, and label it as the one that's most extreme. I summarized the position of each category for each customer in the table above (an real value of percentile is used instead of quantile index, as for customer 2, most of the consumptions are in the highest quantile. And simple linear interpolation is used to get the percentile value). I am not sure about the mapping from category to an establishement as looks to me nowadays everything could typically be bought at a supermarket, so I would use category as establishment name. (Wouldn't it be better if you provide me a list of establishments to choose from?)</em></p>
+<p><em>For each customer, to characterize its consuming behavior, I would make comparison among product categories, and label it as the one that's most extreme. I summarized the position of each category for each customer in the table above (an real value of percentile is used instead of quantile index, as for customer 2, most of the consumptions are in the highest quantile. And simple linear interpolation is used to get the percentile value). Determination of establishment is based on comparison of the sample to others along eath feature.</em></p>
 <ul>
-<li><em>First customer(idx = 76), consumes most at Frozen.</em></li>
-<li><em>Second customer(idx = 100), consumes most at Detergents_Paper, although it also does quite consumption at Milk, Grocery and Delicatessen.</em></li>
-<li><em>Thrid customer(idx = 357), consumes most at Grocery.</em></li>
+<li><em>First customer(idx = 76), consumption of Forzen is in top quantile; comsumption of Milk, Grocery, Delicatessen and Detergents_Paper is moderate; and little Fresh. I would guess it is a Restaurant, whose food menu does not quite depend on Fresh.</em></li>
+<li><em>Second customer(idx = 100), it consumes in top quantile for all of the features except Fresh, while Fresh consumption is also above average. I would say it is a supermarket-like retailer which sells just everything.</em></li>
+<li><em>Thrid customer(idx = 357), Grocery and Detergents_Paper are in top quantile, some milk, and little Fresh, Frozen or Delicatessen. Looks like it is a retailer thats has focus on Grocery and Detergents_Paper.</em></li>
 </ul>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -12216,7 +12253,11 @@ div#notebook {
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>score for predicting Fresh: -0.3857
 score for predicting Milk: 0.1563
@@ -12232,8 +12273,7 @@ score for predicting Delicatessen: -2.2547
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -12243,19 +12283,17 @@ score for predicting Delicatessen: -2.2547
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
-<p><em>I first only tried 'Frozen' and get a negative score, meaning the models fails to fit. Getting curious, I just tried a fit for each one of the columns and took a look at the results. Turns out Grocery can be well predicted by the others, and thus can be considered unnecessary. For all other features, the score is low enough to be considered necessary.</em></p>
+<p><em>I first only tried 'Frozen' and get a negative score, meaning the models fails to fit, i.e. it can be considered independent from other features, thus necessary. Getting curious, I just tried a fit for each one of the columns and took a look at the results. Turns out Grocery can be well predicted by the others, and thus can be considered unnecessary. For all other features, the score is low enough to be considered necessary.</em></p>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -12281,7 +12319,11 @@ score for predicting Delicatessen: -2.2547
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -13746,8 +13788,7 @@ SUVORK5CYII=
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13757,20 +13798,18 @@ SUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
 <p><em>I see three pairs showing visible correlation structure, ordered from strong to weak: Grocery vs. Detergents_Paper, milk vs. Grocery and Milk vs. Detergents_Paper. It is consistent with the analysis above, where Grocery can be best predicted, Detergents_Paper being next and milk being third, which are the only three that has positive score.</em></p>
-<p><em>The distribution is apparently not normal from PDF plot. The peak (mode) is close to zero while these variables cannot take a negative value. Also, as mentioned below, difference between mean and median (skewness) is also a good indicator of normality. Although locations of mean and median can not be well visualized, it is clear the skewness is high.</em></p>
+<p><em>The distribution is apparently not normal from PDF plot. The peak (mode) is close to zero while these variables cannot take a negative value. Also, as mentioned below, difference between mean and median (skewness) is also a good indicator of normality. From descriptive stats, mean is well above median for all features.</em></p>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13779,8 +13818,7 @@ SUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13817,7 +13855,11 @@ SUVORK5CYII=
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -17231,8 +17273,7 @@ H41Go9FoNBqNRrMq+P8BgiKWD2uC/EAAAAAASUVORK5CYII=
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -17259,7 +17300,11 @@ H41Go9FoNBqNRrMq+P8BgiKWD2uC/EAAAAAASUVORK5CYII=
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -17314,8 +17359,7 @@ H41Go9FoNBqNRrMq+P8BgiKWD2uC/EAAAAAASUVORK5CYII=
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -17388,14 +17432,22 @@ Once you have performed this implementation, the dataset will be stored in the v
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Data points considered outliers for the feature &#39;Fresh&#39;:
 </pre>
 </div>
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -17563,14 +17615,22 @@ Once you have performed this implementation, the dataset will be stored in the v
 
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Data points considered outliers for the feature &#39;Milk&#39;:
 </pre>
 </div>
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -17630,14 +17690,22 @@ Once you have performed this implementation, the dataset will be stored in the v
 
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Data points considered outliers for the feature &#39;Grocery&#39;:
 </pre>
 </div>
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -17679,14 +17747,22 @@ Once you have performed this implementation, the dataset will be stored in the v
 
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Data points considered outliers for the feature &#39;Frozen&#39;:
 </pre>
 </div>
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -17800,14 +17876,22 @@ Once you have performed this implementation, the dataset will be stored in the v
 
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Data points considered outliers for the feature &#39;Detergents_Paper&#39;:
 </pre>
 </div>
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -17849,14 +17933,22 @@ Once you have performed this implementation, the dataset will be stored in the v
 
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Data points considered outliers for the feature &#39;Delicatessen&#39;:
 </pre>
 </div>
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -18006,7 +18098,11 @@ Once you have performed this implementation, the dataset will be stored in the v
 
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>rule1: defines as outlier if # outlier features &gt; 0
 original data shape:(440, 6)
@@ -18022,8 +18118,7 @@ good_data shape: (435, 6)
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18032,8 +18127,7 @@ good_data shape: (435, 6)
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18045,8 +18139,7 @@ good_data shape: (435, 6)
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18055,8 +18148,7 @@ good_data shape: (435, 6)
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18096,14 +18188,22 @@ good_data shape: (435, 6)
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>cum sum explained variance: [ 0.44302505  0.70681723  0.82988103  0.93109011  0.97959207  1.        ]
 </pre>
 </div>
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -18419,8 +18519,7 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18430,21 +18529,20 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
 <p><em>The first 2 PCs explain 70.68% variance and first 4 PCs explain 93.11% variance.</em></p>
 <ul>
-<li><p><em>1st PC is mainly the linear combination of Milk &amp; Grocery &amp; Detergents_Paper, which is corresponds to the visuable correlation structure mentioned above. Since the 3 are positively correlated with each other, the common information can be extracted as a sum of the three. Also, since correlation structure is what PCA models, no surprise it is represented as the 1st PC.</em></p>
+<li><p><em>1st PC is mainly the linear combination of Milk &amp; Grocery &amp; Detergents_Paper, which is corresponds to the visuable correlation structure mentioned above. Since the 3 are positively correlated with each other, the common information can be extracted as a sum of the three. So the 1st PC represents the customers who buy a lot Milk &amp; Grocery &amp; Detergents_Paper.</em></p>
 </li>
 <li><p><em>All 3 following PC mainly tries to capture some structure among the remaining 3 factors.</em></p>
 <ul>
-<li><em>2nd PC is the sum of the 3, which is the most intuitive local representative structure.</em></li>
-<li><em>3rd PC is Delicatessen - Fresh.</em></li>
-<li><em>4th PC is Frozen - Delicatessen</em></li>
+<li><em>2nd PC is the sum of the 3, i.e. representing customers who buy a lot Fresh &amp; Frozen &amp; Delicatessen.</em></li>
+<li><em>3rd PC is Delicatessen - Fresh, i.e. representing customers who buy a lot Delicatessen while little Fresh.</em></li>
+<li><em>4th PC is Frozen - Delicatessen, i.e. representing customers who buy a lot Frozen, while little Delicatessen.</em></li>
 </ul>
 </li>
 </ul>
@@ -18452,8 +18550,7 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18479,7 +18576,11 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -18534,8 +18635,7 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18574,8 +18674,7 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18601,7 +18700,11 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -18640,8 +18743,7 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18668,16 +18770,24 @@ zMzMsnCHyczMzMzMLIv/BwsRP33VigUpAAAAAElFTkSuQmCC
 <div class="output">
 
 
-<div class="output_area"><div class="prompt output_prompt">Out[14]:</div>
+<div class="output_area">
+
+<div class="prompt output_prompt">Out[14]:</div>
+
+
 
 
 <div class="output_text output_subarea output_execute_result">
-<pre>&lt;matplotlib.axes._subplots.AxesSubplot at 0xbe22f60&gt;</pre>
+<pre>&lt;matplotlib.axes._subplots.AxesSubplot at 0xbec7e48&gt;</pre>
 </div>
 
 </div>
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -19768,8 +19878,7 @@ AAAAJIYgEwAAAACQGIJMAAAAAEBi/n80Q1POTTUNgQAAAABJRU5ErkJggg==
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -19779,8 +19888,7 @@ AAAAJIYgEwAAAACQGIJMAAAAAEBi/n80Q1POTTUNgQAAAABJRU5ErkJggg==
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -19789,8 +19897,7 @@ AAAAJIYgEwAAAACQGIJMAAAAAEBi/n80Q1POTTUNgQAAAABJRU5ErkJggg==
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -19799,8 +19906,7 @@ AAAAJIYgEwAAAACQGIJMAAAAAEBi/n80Q1POTTUNgQAAAABJRU5ErkJggg==
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -19812,8 +19918,7 @@ AAAAJIYgEwAAAACQGIJMAAAAAEBi/n80Q1POTTUNgQAAAABJRU5ErkJggg==
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -19862,7 +19967,11 @@ AAAAJIYgEwAAAACQGIJMAAAAAEBi/n80Q1POTTUNgQAAAABJRU5ErkJggg==
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>score for # clusters = 2: 0.4117
 score for # clusters = 3: 0.3984
@@ -19903,8 +20012,7 @@ score for # clusters = 6: 0.2963
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -19913,8 +20021,7 @@ score for # clusters = 6: 0.2963
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -19924,8 +20031,7 @@ score for # clusters = 6: 0.2963
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -19951,7 +20057,11 @@ score for # clusters = 6: 0.2963
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -20580,8 +20690,7 @@ AAAAqBwCIQAAAACVQyAEAAAAoHL+Pzk+l5SkPnRHAAAAAElFTkSuQmCC
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20621,7 +20730,11 @@ AAAAqBwCIQAAAACVQyAEAAAAoHL+Pzk+l5SkPnRHAAAAAElFTkSuQmCC
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 <div class="output_html rendered_html output_subarea ">
 <div>
@@ -20667,8 +20780,78 @@ AAAAqBwCIQAAAACVQyAEAAAAoHL+Pzk+l5SkPnRHAAAAAElFTkSuQmCC
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[19]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython2"><pre><span></span><span class="n">pos_centers</span> <span class="o">=</span> <span class="n">true_centers</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">pos_centers</span><span class="o">.</span><span class="n">index</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">pos_centers</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="n">pos_centers</span><span class="o">.</span><span class="n">ix</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">locate_attribute</span><span class="p">(</span><span class="n">true_centers</span><span class="o">.</span><span class="n">ix</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="n">col</span><span class="p">],</span> <span class="n">col</span><span class="p">)</span>
+
+<span class="n">display</span><span class="p">(</span><span class="n">pos_centers</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
+
+<div class="output_html rendered_html output_subarea ">
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Fresh</th>
+      <th>Milk</th>
+      <th>Grocery</th>
+      <th>Frozen</th>
+      <th>Detergents_Paper</th>
+      <th>Delicatessen</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Segment 0</th>
+      <td>53.27%</td>
+      <td>31.39%</td>
+      <td>30.01%</td>
+      <td>58.25%</td>
+      <td>28.32%</td>
+      <td>40.42%</td>
+    </tr>
+    <tr>
+      <th>Segment 1</th>
+      <td>28.18%</td>
+      <td>69.55%</td>
+      <td>71.54%</td>
+      <td>31.37%</td>
+      <td>69.53%</td>
+      <td>46.43%</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20678,24 +20861,21 @@ AAAAqBwCIQAAAACVQyAEAAAAoHL+Pzk+l5SkPnRHAAAAAElFTkSuQmCC
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
-<p><em>Still not sure about the definition of establishements, I would just use the category names:</em></p>
+<p><em>Again, put the feature values into quantiles as in Question 1:</em></p>
 <ul>
-<li><em>Segment0: Fresh and Frozen.</em></li>
-<li><em>Segment1: Milk, Grocery and Detergents_Paper.</em></li>
+<li><em>Segment0: around average Fresh &amp; Frozen &amp; Delicatessen and below average Milk &amp; Grocery &amp; Detergents_Paper, looks like places that sell foods, like restaurants and hotels.</em></li>
+<li><em>Segment1: above average Milk &amp; Grocery &amp; Detergents_Paper; below average Fresh &amp; Frozen and moderate Delicattessen. Looks like markets that sell daily-usage commodities.</em></li>
 </ul>
-<p><em>It is the consistent with the analysis in Question 5.</em></p>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20707,7 +20887,7 @@ AAAAqBwCIQAAAACVQyAEAAAAoHL+Pzk+l5SkPnRHAAAAAElFTkSuQmCC
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[19]:</div>
+<div class="prompt input_prompt">In&nbsp;[20]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython2"><pre><span></span><span class="c1"># Display the predictions</span>
@@ -20723,7 +20903,11 @@ AAAAqBwCIQAAAACVQyAEAAAAoHL+Pzk+l5SkPnRHAAAAAElFTkSuQmCC
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Sample point 0 predicted to be in Cluster 0
 Sample point 1 predicted to be in Cluster 1
@@ -20736,19 +20920,144 @@ Sample point 2 predicted to be in Cluster 1
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
-</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[21]:</div>
 <div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<p><strong>Answer:</strong></p>
-<p><em>I am not sure what this question asks. Cluster-labeling of the sample data points are shown above and the meaning of each cluster is described in Question 8. It is consistent with first intuition as in Question 1.</em></p>
+    <div class="input_area">
+<div class=" highlight hl-ipython2"><pre><span></span><span class="n">display</span><span class="p">(</span><span class="n">pos_centers</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+</pre></div>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
+
+<div class="output_html rendered_html output_subarea ">
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Fresh</th>
+      <th>Milk</th>
+      <th>Grocery</th>
+      <th>Frozen</th>
+      <th>Detergents_Paper</th>
+      <th>Delicatessen</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Segment 0</th>
+      <td>53.27%</td>
+      <td>31.39%</td>
+      <td>30.01%</td>
+      <td>58.25%</td>
+      <td>28.32%</td>
+      <td>40.42%</td>
+    </tr>
+    <tr>
+      <th>Segment 1</th>
+      <td>28.18%</td>
+      <td>69.55%</td>
+      <td>71.54%</td>
+      <td>31.37%</td>
+      <td>69.53%</td>
+      <td>46.43%</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
+
+<div class="output_html rendered_html output_subarea ">
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Fresh</th>
+      <th>Milk</th>
+      <th>Grocery</th>
+      <th>Frozen</th>
+      <th>Detergents_Paper</th>
+      <th>Delicatessen</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>5.71%</td>
+      <td>49.52%</td>
+      <td>57.53%</td>
+      <td>76.73%</td>
+      <td>37.16%</td>
+      <td>46.79%</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>59.16%</td>
+      <td>75.22%</td>
+      <td>75.45%</td>
+      <td>71.27%</td>
+      <td>77.79%</td>
+      <td>75.66%</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>0.27%</td>
+      <td>20.64%</td>
+      <td>78.54%</td>
+      <td>3.90%</td>
+      <td>76.91%</td>
+      <td>6.60%</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Answer:</strong></p>
+<p><em>Put together the feature locations of the samples and of the centers for convenience. I would say the results are more or less consistent.</em></p>
+<ul>
+<li><em>sample 0: it is actually a tough call, Frozen above average, Detergents_Paper below average and Delicatessen around average; these 3 parts match the pattern of segment 0. Too little Fresh is a problem, but except that, Frozen keeps with the pattern and all others are not far away.</em></li>
+<li><em>sample 1: well above average Milk &amp; Grocery aand Detergents_Paper well matches that of Segment 1, although Frozen and Delecatessen are also a lot, considering less Fresh, I would say it looks like Segment 1 more than Segment 0.</em></li>
+<li><em>sample 2: well above average Grocery and Detergents_Paper is typical Segment 1, although Milk is not much, too little Fresh and Frozen is definitely not Segment 0.</em></li>
+</ul>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20756,8 +21065,7 @@ Sample point 2 predicted to be in Cluster 1
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20766,8 +21074,7 @@ Sample point 2 predicted to be in Cluster 1
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20777,19 +21084,21 @@ Sample point 2 predicted to be in Cluster 1
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
-<p><em>I think people consumes Milk/Grocery/Detergents_Paper less frequently than Frozen and Fresh. So improving delivery frequency from 5-days to 3-days will positively affects customers from Frozen and Fresh(Segment0), and little effect on the other. And whether the company determines to apply the change depends on the amount of customers in each segment, that's where the analysis above values.</em></p>
+<p><em>A/B test can be used to find the finer structure of how certain change affects target objects, and apply the optimal stretegy for each subgroup. Now clusters by-natural provide us a way of segmentation, and we can use A/B test to find the optimal stretegy for each instead of one for all:</em></p>
+<ul>
+<li><em>we have 2 strategies: A, delievery frequency as 5 days a week; B, delievery frequency as 3 days a week.</em></li>
+<li><em>for each segment, divide targets into 2 groups, one use strategy A and the other for B. Choose the stretegy that performs better for the segment</em></li>
+</ul>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20800,8 +21109,7 @@ Sample point 2 predicted to be in Cluster 1
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20811,8 +21119,7 @@ Sample point 2 predicted to be in Cluster 1
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -20824,7 +21131,7 @@ Sample point 2 predicted to be in Cluster 1
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[20]:</div>
+<div class="prompt input_prompt">In&nbsp;[22]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython2"><pre><span></span><span class="c1"># Display the clustering results based on &#39;Channel&#39; data</span>
@@ -20839,7 +21146,11 @@ Sample point 2 predicted to be in Cluster 1
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -21479,8 +21790,7 @@ AABoOARCAAAAABoOgRAAAACAhkMgBAAAAKDhEAgBAAAAaDj/D8TZ4SdOxRpMAAAAAElFTkSuQmCC
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -21489,19 +21799,17 @@ AABoOARCAAAAABoOgRAAAACAhkMgBAAAAKDhEAgBAAAAaDj/D8TZ4SdOxRpMAAAAAElFTkSuQmCC
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
-<p><em>Algo suggests 2 clusters, which is consistent with undelying true labels. And from distribution, we can tell segment0 corresponds to Hotel/Restaurant/Cafe and segment1 corresponds to Retailer. The data looks consistent, but again, I am not sure how exactly to 'define' a customer segment, and I don't quite see why Fresh and Frozen are necessarily related to Hotel/Restaurant/Cafe.</em></p>
+<p><em>Algo suggests 2 clusters, which is consistent with undelying true labels. And from distribution, we can tell segment0 corresponds to Hotel/Restaurant/Cafe and segment1 corresponds to Retailer.</em></p>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -21515,4 +21823,8 @@ AABoOARCAAAAABoOgRAAAACAhkMgBAAAAKDhEAgBAAAAaDj/D8TZ4SdOxRpMAAAAAElFTkSuQmCC
     </div>
   </div>
 </body>
+
+ 
+
+
 </html>
