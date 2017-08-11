@@ -1,8 +1,10 @@
 import random
 import math
+import time
 from environment import Agent, Environment
 from planner import RoutePlanner
 from simulator import Simulator
+import numpy as np
 
 class LearningAgent(Agent):
     """ An agent that learns to drive in the Smartcab world.
@@ -37,9 +39,12 @@ class LearningAgent(Agent):
         ## TO DO ##
         ###########
         # Update epsilon using a decay function of your choice
+        self.epsilon -= 0.05
         # Update additional class parameters as needed
         # If 'testing' is True, set epsilon and alpha to 0
-
+        if testing:
+            self.epsilon = 0.0
+            self.alpha = 0.0
         return None
 
     def build_state(self):
@@ -56,7 +61,7 @@ class LearningAgent(Agent):
         ## TO DO ##
         ###########
         # Set 'state' as a tuple of relevant data for the agent        
-        state = None
+        state = (waypoint, inputs['light'], inputs['oncoming'] is None, inputs['left'] is None, inputs['right'] is None)
 
         return state
 
@@ -69,9 +74,7 @@ class LearningAgent(Agent):
         ## TO DO ##
         ###########
         # Calculate the maximum Q-value of all actions for a given state
-
-        maxQ = None
-
+        maxQ = np.max(np.array(self.Q[state].values()))
         return maxQ 
 
 
@@ -100,10 +103,16 @@ class LearningAgent(Agent):
         ########### 
         ## TO DO ##
         ###########
-        # When not learning, choose a random action
-        # When learning, choose a random action with 'epsilon' probability
-        #   Otherwise, choose an action with the highest Q-value for the current state
- 
+        if not self.learning:
+            # When not learning, choose a random action
+            action = random.choice(self.valid_actions)
+        else:
+            if random.random() <= self.epsilon:
+                # When learning, choose a random action with 'epsilon' probability
+                action = random.choice(self.valid_actions)
+            else:
+                # Otherwise, choose an action with the highest Q-value for the current state
+                pass
         return action
 
 
@@ -138,7 +147,6 @@ class LearningAgent(Agent):
 def run():
     """ Driving function for running the simulation. 
         Press ESC to close the simulation, or [SPACE] to pause the simulation. """
-
     ##############
     # Create the environment
     # Flags:
@@ -159,6 +167,7 @@ def run():
     # Follow the driving agent
     # Flags:
     #   enforce_deadline - set to True to enforce a deadline metric
+    # env.set_primary_agent(agent, enforce_deadline=True)
     env.set_primary_agent(agent)
 
     ##############
@@ -168,6 +177,7 @@ def run():
     #   display      - set to False to disable the GUI if PyGame is enabled
     #   log_metrics  - set to True to log trial and simulation results to /logs
     #   optimized    - set to True to change the default log file name
+    # sim = Simulator(env, update_delay=0.01, log_metrics=True, display=False)
     sim = Simulator(env)
     
     ##############
@@ -175,8 +185,8 @@ def run():
     # Flags:
     #   tolerance  - epsilon tolerance before beginning testing, default is 0.05 
     #   n_test     - discrete number of testing trials to perform, default is 0
+    # sim.run(n_test=10)
     sim.run()
-
 
 if __name__ == '__main__':
     run()

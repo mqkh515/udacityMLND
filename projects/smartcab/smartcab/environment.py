@@ -231,6 +231,7 @@ class Environment(object):
         light = 'green' if (self.intersections[location].state and heading[1] != 0) or ((not self.intersections[location].state) and heading[0] != 0) else 'red'
 
         # Populate oncoming, left, right
+        # oncoming, left, right identifies the relative position of other_agent to this_agent
         oncoming = None
         left = None
         right = None
@@ -242,6 +243,10 @@ class Environment(object):
             if other_agent == self.primary_agent:
                 continue
             other_heading = other_agent.get_next_waypoint()
+            # not-want-to-override: at one location, only other agents at the same cross point matter.
+            # For each relative position, potentially we can have more than one agents.
+            # if any one of them is going in the accident/violation prone direction, we assume all of them are going in the direction.
+            # i.e. if we have problem with one them, the problem would get worse if there are more agents in the same relative position, no matter where it is going.
             if (heading[0] * other_state['heading'][0] + heading[1] * other_state['heading'][1]) == -1:
                 if oncoming != 'left':  # we don't want to override oncoming == 'left'
                     oncoming = other_heading
