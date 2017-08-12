@@ -11866,9 +11866,9 @@ div#notebook {
 <li><em>The Smartcab does not move at all during the simulation.</em></li>
 <li><em>Positve and Negative rewards are observed during the simulation.</em></li>
 <li><em>Given Smartcab idles forever, there are now three types of situations:</em><ul>
-<li><em>red light: large positive reward.</em></li>
-<li><em>green light without oncoming traffic: large negative reward.</em></li>
-<li><em>green light with oncoming traffic: small positive reward (in case of a left turn)</em></li>
+<li><em>case 1: red light: positive reward.</em></li>
+<li><em>case 2: green light without oncoming traffic: negative reward. (abs value larger than the red light case)</em></li>
+<li><em>case 3: green light with oncoming traffic: positive reward (smaller than red light case) for most of the time, sometimes similar reward to case 2.</em></li>
 </ul>
 </li>
 </ul>
@@ -11911,7 +11911,7 @@ div#notebook {
 <ul>
 <li><em>enforce_deadline: if set to True, it will affects 2 parts:</em> <ul>
 <li><em>Trail termination (and successfulness status) will depend on number steps to deadline, not on a hard-coded number of update steps.</em></li>
-<li><em>Reliability metric will be considered for trainig, i.e. as part of reward.</em></li>
+<li><em>Number of steps to deadline will be considered part of reward.</em></li>
 </ul>
 </li>
 <li><em>update_delay: it controls the time interval between two updates in simulation, the smaller delay, the faster the simulation will proceed.</em></li>
@@ -13108,7 +13108,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </li>
 </ul>
 </li>
-<li><em>Rate of liability is low, sometimes around 20%, sometimes all zero, looks 20% is the upper bound here. Since allowed number of moves is 5 times of distance, I'm just curious if there is some relationship between this 5 multiplication and 20% here. But just to say that for most of the time, the primary agent cannot reach destination within deadline, I think it is reasonable because the car is just moving randomly.</em></li>
+<li><em>Rate of reliability is low, sometimes around 20%, sometimes all zero, looks 20% is the upper bound here. Since allowed number of moves is 5 times of distance, I'm just curious if there is some relationship between this 5 multiplication and 20% here. But just to say that for most of the time, the primary agent cannot reach destination within deadline, I think it is reasonable because the car is just moving randomly.</em></li>
 <li><em>The reward is always negative, at around -5. Considering valid moves give positive reward, I think it is OK to say it has been heavily penalized.</em></li>
 <li><em>As number of trials increases, the outcome does not change significantly, which makes perfect sense, as the agent is not accumulating any knowledge, every trial is independent of each other.</em></li>
 <li><em>Of course this 'Smartcab' is not safe or reliable, simply speaking, both the Safely Rating and Reliability Rating are F.</em></li>
@@ -13177,7 +13177,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </li>
 <li><p><em>waypoint and deadline are relevant for efficiency:</em></p>
 <ul>
-<li><em>Deadline tells how much time we got left, to reach destination within deadline, there might exist cases when some safety could be sacrificed.</em> </li>
+<li><em>Deadline tells how much time we got left, to reach destination within deadline, with proper setup of rewards, there might exist cases when some safety could be sacrificed.</em> </li>
 <li><em>Waypoint indicates relationship between current location and destination. While achieving safety, agents should try to get to destination as quickly as possible.</em></li>
 </ul>
 </li>
@@ -13216,7 +13216,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
 <p><em>Based on reasoning in Question 4, total number of possible states is: 3 (waypoint is suggesting {forward, right, left}) by 2 (light could be {green, red}) by 4 (oncoming car could be {None, forward, right, left}) by 4 (left car could be {None, forward, right, left}) by 4 (right car could be {None, forward, right, left}) by n (max possible number of steps to deadline) = 384n</em></p>
-<p><em>Current simulation setup can not train all this number of states. Ignoring the n part, we do 20 trails (assuming 1/t espilon decay and default tolerance as 0.05), each trial with 5 </em> initial distance, which is at least 4, at most 7. So For simplicity, let's say on average the distance is 6, so that would be 600 single steps in total, which gives less than 2 for each state on average. If deadline is considered, for each deadline, at most 20 trails is possible, so it is 20 experiments on 384 states.*</p>
+<p><em>Current simulation setup can not train all this number of states. Ignoring the n part, we do 20 trails (assuming 1/t espilon decay and default tolerance as 0.05), each trial with number of steps as 5 times initial distance, which is at least 4, at most 7. So For simplicity, let's say on average the distance is 6, so that would be 600 single steps in total, which gives less than 2 for each state on average. If deadline is considered, for each deadline, at most 20 trails is possible, so it is 20 experiments on 384 states.</em></p>
 <p><em>It is for sure not to include deadline, but it is possible to adjust epsilon decay schedule to have more training trials. Allowing 20 samples for each state would be 256 (20 by 384 / 30) trials. I am not sure whether it is enough to get a good training for all states, but the time consumption is practical as 20 trials + 10 tests takes 8 seconds, so 256 trials + 10 tests would still be a little bit more than 1 minute.</em></p>
 <p><em>So, I would propose 2 candidate plans (number of trials chosen depends on actual experiment results):</em></p>
 <ul>
@@ -16203,6 +16203,7 @@ IiIiIiIiKvI/oD4lWRRrGo8AAAAASUVORK5CYII=
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
 <ul>
+<li><em>50 trials are used for testing for more statistically robust results.</em></li>
 <li><em>I used the functional form of epsilon = exp(-0.02t), with 2 considerations:</em><ul>
 <li><em>first, this form is chosen with the thought to use less time when training with more randomness. As the training gets finer, i.e. with less randomness, we are in the stage of searching for the (local) minimuum, thus, need to run it with more times to get a more accurate value.</em></li>
 <li><em>0.02 is chosen so that, together with tolerance choice, I want to make sure enough number of trials are taken (I preferred 200+ trails which averages to 100+ experiments for each state).</em></li>
