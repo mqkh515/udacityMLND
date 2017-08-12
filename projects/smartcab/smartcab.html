@@ -11864,7 +11864,7 @@ div#notebook {
 <p><strong>Answer:</strong></p>
 <ul>
 <li><em>The Smartcab does not move at all during the simulation.</em></li>
-<li><em>Reward is provided solely on safety metric.</em></li>
+<li><em>Positve and Negative rewards are observed during the simulation.</em></li>
 <li><em>Given Smartcab idles forever, there are now three types of situations:</em><ul>
 <li><em>red light: large positive reward.</em></li>
 <li><em>green light without oncoming traffic: large negative reward.</em></li>
@@ -11920,7 +11920,7 @@ div#notebook {
 <p><em>An actual action for a specific agent is performed in env.act(), which is called inside agent.update(). Performing an action actually consists of two parts, determine which action to take based on current state and take the action, that is what the update() function does. At higher level, all agents update() function is called inside env.step().</em></p>
 <p><em>They both provide verbose information of the simulation status, but at different places:</em></p>
 <ul>
-<li><em>render_text() prints information in cmd console.</em></li>
+<li><em>render_text() prints information in console.</em></li>
 <li><em>render() prints information on pygame GUI.</em></li>
 </ul>
 <p><em>next_waypoint() checks dx first, i.e. East-West first.</em></p>
