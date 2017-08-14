@@ -134,7 +134,7 @@ class LearningAgent(Agent):
                 #         action = a
                 #         break
                 # explicitly random choose one action from those with same value as max_Q
-                candidate_actions = [a for a, q in self.Q[state].items() if np.abs(q - max_Q) < 1e-12 ]
+                candidate_actions = [a for a, q in self.Q[state].items() if np.abs(q - max_Q) < 1e-12]  # use abs here for float precision concern
                 action = random.choice(candidate_actions)
         return action
 

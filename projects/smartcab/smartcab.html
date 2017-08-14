@@ -1,9 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" />
-<title>smartcab</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<title>smartcab</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
 
 <style type="text/css">
@@ -13,8 +11,8 @@
 *
 */
 /*!
- * Bootstrap v3.3.6 (http://getbootstrap.com)
- * Copyright 2011-2015 Twitter, Inc.
+ * Bootstrap v3.3.7 (http://getbootstrap.com)
+ * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  */
 /*! normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css */
@@ -1109,7 +1107,6 @@ a:focus {
   text-decoration: underline;
 }
 a:focus {
-  outline: thin dotted;
   outline: 5px auto -webkit-focus-ring-color;
   outline-offset: -2px;
 }
@@ -2538,7 +2535,6 @@ select[size] {
 input[type="file"]:focus,
 input[type="radio"]:focus,
 input[type="checkbox"]:focus {
-  outline: thin dotted;
   outline: 5px auto -webkit-focus-ring-color;
   outline-offset: -2px;
 }
@@ -3029,7 +3025,6 @@ select[multiple].input-lg {
 .btn.focus,
 .btn:active.focus,
 .btn.active.focus {
-  outline: thin dotted;
   outline: 5px auto -webkit-focus-ring-color;
   outline-offset: -2px;
 }
@@ -8760,6 +8755,9 @@ body > #header .header-bar {
     margin-left: 10px;
   }
 }
+[dir="rtl"] #ipython_notebook {
+  float: right !important;
+}
 #noscript {
   width: auto;
   padding-top: 16px;
@@ -8962,8 +8960,14 @@ span#login_widget > .button .badge,
  *
  * Author: Jupyter Development Team
  */
+[dir="rtl"] #tabs li {
+  float: right;
+}
 ul#tabs {
   margin-bottom: 4px;
+}
+[dir="rtl"] ul#tabs {
+  margin-right: 0px;
 }
 ul#tabs a {
   padding-top: 6px;
@@ -8986,6 +8990,16 @@ ul.breadcrumb span {
 }
 .list_toolbar .tree-buttons {
   padding-top: 1px;
+}
+[dir="rtl"] .list_toolbar .tree-buttons {
+  float: left !important;
+}
+[dir="rtl"] .list_toolbar .pull-right {
+  padding-top: 1px;
+  float: left !important;
+}
+[dir="rtl"] .list_toolbar .pull-left {
+  float: right !important;
 }
 .dynamic-buttons {
   padding-top: 3px;
@@ -9122,6 +9136,9 @@ ul.breadcrumb span {
 #tree-selector {
   padding-right: 0px;
 }
+[dir="rtl"] #tree-selector a {
+  float: right;
+}
 #button-select-all {
   min-width: 50px;
 }
@@ -9211,6 +9228,9 @@ ul#new-menu {
   left: auto;
   right: 0;
 }
+[dir="rtl"] #new-menu {
+  text-align: right;
+}
 .kernel-menu-icon {
   padding-right: 12px;
   width: 24px;
@@ -9255,6 +9275,9 @@ ul#new-menu {
 }
 #running .panel-group .panel .panel-body .list_container .list_item:last-child {
   border-bottom: 0px;
+}
+[dir="rtl"] #running .col-sm-8 {
+  float: right !important;
 }
 .delete-button {
   display: none;
@@ -9551,6 +9574,7 @@ div.cell.selected.jupyter-soft-selected {
   }
 }
 div.inner_cell {
+  min-width: 0;
   /* Old browsers */
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -9571,11 +9595,6 @@ div.inner_cell {
   box-flex: 1;
   /* Modern browsers */
   flex: 1;
-}
-@-moz-document url-prefix() {
-  div.inner_cell {
-    overflow-x: hidden;
-  }
 }
 /* input_area and input_prompt must match in top border and margin for alignment */
 div.input_area {
@@ -11246,7 +11265,7 @@ div#pager .ui-resizable-handle::after {
 }
 .shortcut_key {
   display: inline-block;
-  width: 20ex;
+  width: 21ex;
   text-align: right;
   font-family: monospace;
 }
@@ -11558,6 +11577,7 @@ ul.typeahead-list > li > a {
   box-shadow: 0px 0px 12px 1px rgba(87, 87, 87, 0.2);
 }
 .terminal-app .terminal {
+  width: 100%;
   float: left;
   font-family: monospace;
   color: white;
@@ -11571,6 +11591,9 @@ ul.typeahead-list > li > a {
 .terminal-app .terminal dummy-screen {
   line-height: 1em;
   font-size: 14px;
+}
+.terminal-app .terminal .xterm-rows {
+  padding: 10px;
 }
 .terminal-app .terminal-cursor {
   color: black;
@@ -11631,8 +11654,10 @@ ul.typeahead-list > li > a {
 .highlight .mh { color: #666666 } /* Literal.Number.Hex */
 .highlight .mi { color: #666666 } /* Literal.Number.Integer */
 .highlight .mo { color: #666666 } /* Literal.Number.Oct */
+.highlight .sa { color: #BA2121 } /* Literal.String.Affix */
 .highlight .sb { color: #BA2121 } /* Literal.String.Backtick */
 .highlight .sc { color: #BA2121 } /* Literal.String.Char */
+.highlight .dl { color: #BA2121 } /* Literal.String.Delimiter */
 .highlight .sd { color: #BA2121; font-style: italic } /* Literal.String.Doc */
 .highlight .s2 { color: #BA2121 } /* Literal.String.Double */
 .highlight .se { color: #BB6622; font-weight: bold } /* Literal.String.Escape */
@@ -11643,9 +11668,11 @@ ul.typeahead-list > li > a {
 .highlight .s1 { color: #BA2121 } /* Literal.String.Single */
 .highlight .ss { color: #19177C } /* Literal.String.Symbol */
 .highlight .bp { color: #008000 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #0000FF } /* Name.Function.Magic */
 .highlight .vc { color: #19177C } /* Name.Variable.Class */
 .highlight .vg { color: #19177C } /* Name.Variable.Global */
 .highlight .vi { color: #19177C } /* Name.Variable.Instance */
+.highlight .vm { color: #19177C } /* Name.Variable.Magic */
 .highlight .il { color: #666666 } /* Literal.Number.Integer.Long */
     </style>
 <style type="text/css">
@@ -11699,9 +11726,7 @@ body {
 div#notebook {
   overflow: visible;
   border-top: none;
-}
-
-@media print {
+}@media print {
   div.cell {
     display: block;
     page-break-inside: avoid;
@@ -11722,7 +11747,7 @@ div#notebook {
 
 <!-- Loading mathjax macro -->
 <!-- Load mathjax -->
-    <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS_HTML"></script>
     <!-- MathJax configuration -->
     <script type="text/x-mathjax-config">
     MathJax.Hub.Config({
@@ -11746,8 +11771,7 @@ div#notebook {
   <div tabindex="-1" id="notebook" class="border-box-sizing">
     <div class="container" id="notebook-container">
 
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11758,8 +11782,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11828,8 +11851,7 @@ div#notebook {
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11838,8 +11860,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11856,8 +11877,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11876,8 +11896,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11886,8 +11905,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11901,8 +11919,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11928,8 +11945,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11939,8 +11955,7 @@ div#notebook {
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -11975,7 +11990,11 @@ Run the agent.py file after setting the flags from projects/smartcab folder inst
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -13075,8 +13094,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13092,8 +13110,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13117,8 +13134,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13128,8 +13144,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13149,8 +13164,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13159,8 +13173,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13186,8 +13199,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13198,8 +13210,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13209,8 +13220,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13236,8 +13246,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13247,8 +13256,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13272,8 +13280,7 @@ mZmZmVmVOMEyMzMzMzOrEidYZmZmZmZmVfL/paDTch9S4wMAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -13309,7 +13316,11 @@ $$ \epsilon_{t+1} = \epsilon_{t} - 0.05, \hspace{10px}\textrm{for trial number }
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -14494,8 +14505,7 @@ JEmSeuQfIraqXrzujuAAAAAASUVORK5CYII=
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -14511,8 +14521,7 @@ JEmSeuQfIraqXrzujuAAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -14542,8 +14551,7 @@ JEmSeuQfIraqXrzujuAAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -14553,8 +14561,7 @@ JEmSeuQfIraqXrzujuAAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -14574,7 +14581,7 @@ JEmSeuQfIraqXrzujuAAAAAASUVORK5CYII=
 <li><code>'tolerance'</code> - set this to some small value larger than 0 (default was 0.05) to set the epsilon threshold for testing.</li>
 </ul>
 <p>Furthermore, use a decaying function of your choice for $\epsilon$ (the exploration factor). Note that whichever function you use, it <strong>must decay to </strong><code>'tolerance'</code><strong> at a reasonable rate</strong>. The Q-Learning agent will not begin testing until this occurs. Some example decaying functions (for $t$, the number of trials):</p>
-$$ \epsilon = a^t, \textrm{for } 0 < a < 1 \hspace{50px}\epsilon = \frac{1}{t^2}\hspace{50px}\epsilon = e^{-at}, \textrm{for } 0 < a < 1 \hspace{50px} \epsilon = \cos(at), \textrm{for } 0 < a < 1$$<p>You may also use a decaying function for $\alpha$ (the learning rate) if you so choose, however this is typically less common. If you do so, be sure that it adheres to the inequality $0 \leq \alpha \leq 1$.</p>
+$$ \epsilon = a^t, \textrm{for } 0 &lt; a &lt; 1 \hspace{50px}\epsilon = \frac{1}{t^2}\hspace{50px}\epsilon = e^{-at}, \textrm{for } 0 &lt; a &lt; 1 \hspace{50px} \epsilon = \cos(at), \textrm{for } 0 &lt; a &lt; 1$$<p>You may also use a decaying function for $\alpha$ (the learning rate) if you so choose, however this is typically less common. If you do so, be sure that it adheres to the inequality $0 \leq \alpha \leq 1$.</p>
 <p>If you have difficulty getting your implementation to work, try setting the <code>'verbose'</code> flag to <code>True</code> to help debug. Flags that have been set here should be returned to their default setting when debugging. It is important that you understand what each flag does and how it affects the simulation!</p>
 <p>Once you have successfully completed the improved Q-Learning simulation, run the code cell below to visualize the results. Note that log files are overwritten when identical simulations are run, so be careful with what log file is being loaded!</p>
 
@@ -14598,7 +14605,11 @@ $$ \epsilon = a^t, \textrm{for } 0 < a < 1 \hspace{50px}\epsilon = \frac{1}{t^2}
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -16223,8 +16234,7 @@ BMvMzMzMzKwgTrDMzMzMzMwK4gTLzMzMzMysIP8PyG8X9p0/zwgAAAAASUVORK5CYII=
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -16241,8 +16251,7 @@ BMvMzMzMzKwgTrDMzMzMzMwK4gTLzMzMzMysIP8PyG8X9p0/zwgAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -16269,8 +16278,7 @@ BMvMzMzMzKwgTrDMzMzMzMwK4gTLzMzMzMysIP8PyG8X9p0/zwgAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -16279,8 +16287,7 @@ BMvMzMzMzKwgTrDMzMzMzMwK4gTLzMzMzMysIP8PyG8X9p0/zwgAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -16289,15 +16296,16 @@ BMvMzMzMzKwgTrDMzMzMzMwK4gTLzMzMzMysIP8PyG8X9p0/zwgAAAAASUVORK5CYII=
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p><strong>Answer:</strong></p>
-<p><em>The Rule of Thumb is to comply with what planner suggests when there is no breaking of rule, otherwise comply with the rule. As agreed by testing results, all policy suggested actions are consistent with intuition.</em></p>
-<p><em>I would like to give 2 examples:</em></p>
-<p><em>Complying with planner's suggestion when there is no breaking of rule.</em></p>
+<p><em>The Rule of Thumb is to comply with what planner suggests when there is no breaking of rule, otherwise comply with the rule. With simple state def, algo cannot learn the optimal action in some cases, due to missing information.</em></p>
+<p><em>I would like to give 2 sets of examples:</em></p>
+<p><em>states that gives optimal action:</em></p>
+<ul>
+<li><p><em>Complying with planner's suggestion when there is no breaking of rule.</em></p>
 <ul>
 <li><em>state = (next_way_point = right, light = red, oncoming is None = True, left is None = True, right is None= True).</em></li>
 <li><em>forward: -9.45</em></li>
@@ -16306,14 +16314,57 @@ BMvMzMzMzKwgTrDMzMzMzMwK4gTLzMzMzMysIP8PyG8X9p0/zwgAAAAASUVORK5CYII=
 <li><em>left: -10.20</em></li>
 <li><em>Policy suggests going right as next_way_point. With red light, left car going forward would cause an accident if we turn right. Yet there is no car on the left, so safe to turn. And interestingly to note, reward of staying still is very close to policy action, as it makes no violation (positive reward), but not optimal (wastes time).</em></li>
 </ul>
-<p><em>Reject planner's suggestion when there is risk to break the rule.</em></p>
+</li>
+<li><p><em>Reject planner's suggestion when there is risk to break the rule.</em></p>
 <ul>
 <li><em>state = (next_way_point = right, light = red, oncoming is None = True, left is None = False, right is None = True)</em></li>
 <li><em>forward: -24.05</em></li>
 <li><em>right: -6.36</em></li>
 <li><em>None: 2.17</em></li>
 <li><em>left: -11.84</em></li>
-<li><em>This is the counter case of above example. With red light, existance of left car makes the potential danger that it may go forward if we turn right. So to avoid this possibility, policy suggests that we should stay still for the moment.</em></li>
+<li><em>This is the counter case of above example. With red light, existance of left car makes the potential danger that it may go forward if we turn right. So to avoid this possibility, policy suggests that we should stay still for the moment. Be noted stay still in red light receives the same reward as following next-waypoint in green light.</em></li>
+</ul>
+</li>
+</ul>
+<p><em>states that do not always give optimal action (as reviewer suggested). Actually, without full-state information, we do not know what the optimal action is, but there is probability it is not taking the optimal action, if given all details.</em></p>
+<ul>
+<li><p><em>case 1:</em></p>
+<ul>
+<li><em>state = (next_way_point = left, light = green, oncoming is None = False, left is None = False, right is None= False).</em></li>
+<li><em>forward: 0.00</em></li>
+<li><em>right: 0.96</em></li>
+<li><em>None: -1.68</em></li>
+<li><em>left: 0.00</em></li>
+<li><em>With green light, and cars in all directions:</em><ul>
+<li><em>turning left could have accident if oncoming car goes right or forward. But Q for left action is 0, which means, by chance, during training, above case does not happen, which suggests chosen number of trails was not enough for simple-state.</em></li>
+<li><em>going forward or turning right would be bad-action-clear, but penalized by not following waypoint. Among the two, randomness suggests right.</em></li>
+<li><em>Stay still would be a minor violation, as reflected in reward.</em></li>
+</ul>
+</li>
+<li><em>But if the oncoming car goes left, following the next-waypoint is a valid move, making algo suggested action sub-optimal.</em></li>
+</ul>
+</li>
+<li><p><em>case 2:</em></p>
+<ul>
+<li><em>state = (next_way_point = left, light = green, oncoming is None = False, left is None = True, right is None= False).</em></li>
+<li><em>forward: 0.88</em></li>
+<li><em>right: 0.30</em></li>
+<li><em>None: 0.35</em></li>
+<li><em>left: -10.48</em></li>
+<li><em>with green light, no car on the left, but cars in front and on the right</em><ul>
+<li><em>same as above, turning left while oncoming cars going right or forward would cause an accident, and we do see this in training here.</em></li>
+<li><em>same as above, going froward and going right are equally sub-optiamlly good, randomness chooses forward.</em></li>
+<li><em>None would cause a minor violation if oncoming is not turning left, but sub-optimal otherwise. Positive Q here again shows that action = None + oncoming going right or forward combinations do not appear in training</em></li>
+</ul>
+</li>
+<li><em>Same as above, if oncoming car goes left, algo suggested move is sub-optimal.</em></li>
+</ul>
+</li>
+</ul>
+<p><em>Two things to note here:</em></p>
+<ul>
+<li><em>compared to full state, simple-state not only causes less prob to reach destination in time, but also more sub-optimal actions leads to lower rewards.</em></li>
+<li><em>to consider sufficiency of trials in Q-learning, need to consider dim of state times dim of actions.</em></li>
 </ul>
 
 </div>
@@ -16336,7 +16387,11 @@ BMvMzMzMzKwgTrDMzMzMzMwK4gTLzMzMzMysIP8PyG8X9p0/zwgAAAAASUVORK5CYII=
 <div class="output">
 
 
-<div class="output_area"><div class="prompt"></div>
+<div class="output_area">
+
+<div class="prompt"></div>
+
+
 
 
 <div class="output_png output_subarea ">
@@ -18293,8 +18348,7 @@ igAAAABJRU5ErkJggg==
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18302,13 +18356,13 @@ igAAAABJRU5ErkJggg==
 <ul>
 <li><em>We still get A+ in safety testing, although bad-action rate does not fully converge to 0 in training.</em> </li>
 <li><em>But as expected, reliability behavior in training is better than plan 1, although testing rating is the same. As mentioned above, although it is better, we cannot ensure an A+ in testing, luck plays a role there.</em></li>
+<li><em>Also, reward converges to a higher level that with simple-state.</em></li>
 </ul>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18318,8 +18372,7 @@ igAAAABJRU5ErkJggg==
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18328,8 +18381,7 @@ igAAAABJRU5ErkJggg==
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18345,13 +18397,18 @@ igAAAABJRU5ErkJggg==
 <li><em>env's deterministicness should not be the reason for considering future reward or not. Most of real problem does not have deterministic env. Like in finance world, randomness in env has little to do with action chosen by agent, I don't think it means future reward should not be considered for RL.</em></li>
 <li><em>Actually I believe the only reason for future Q irrelevant in this problem is that all that matters for reward are associated to action, nothing to state, so knowing from next state does not help with learning, but only introduces randomeness and reduces learning efficiency. Having to split this point into 2 parts of smartcab related and env related made me a bit unconfortable.</em></li>
 </ul>
-<p><em>Please suggest if I miss something here.</em></p>
+<p><em>Updates according to review of submit-2:</em></p>
+<p><em>Now I see the point. My previous thought was wrong: even if there is reward associated to state, it still does not work. The problem is that, future state (s_prime) does not depend on (s, a) at all, T(s, a, s_prime) is essentially Prob(s_prime). So the (expected) future term would be the same for all (s, a), including it does not help at all, but introduce meaningless randomness. And this property is causes by two conditions, either one solved would make future relavent. As reviwer suggested:</em></p>
+<ul>
+<li><em>The cab itself cannot see into the future, if the car can know its relative position to destination as a state (like having an GPS), then next state is relavent to (s, a).</em></li>
+<li><em>The env (start point and destination) gets re-initialized each trial, even (s, a) -&gt; s_prime mapping exists within one trial, if it changes every trial, the 'learned' distribution from previous trial is actually misleading, because globally, there is no stationary mapping.</em></li>
+</ul>
+<p><em>One more comment to add is that, this setup is more of a supervised learning problem: predict immediate reward from (s, a) observation, and instead of a functional form, it learns a descrete mapping from (s, a) to reward by averaging all observed rewards for each (s, a), exactly as in course video where explaining why alpha is used.</em></p>
 
 </div>
 </div>
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -18365,4 +18422,8 @@ igAAAABJRU5ErkJggg==
     </div>
   </div>
 </body>
+
+ 
+
+
 </html>
