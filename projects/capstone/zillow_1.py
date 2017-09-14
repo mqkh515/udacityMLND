@@ -25,6 +25,18 @@ def cat_num_to_str(col_name):
         train_data[col_name] = train_data[col_name].apply(lambda x: str(int(x)) if not np.isnan(x) else np.nan)
 
 
+def mark_flag_col(col_name):
+    """mark bool for numerical columns, mark True for val > 0, and False otherwise (include NaN)"""
+    if not prop_data[col_name].dtype == 'O':
+        prop_data_marks_true = prop_data[col_name] >= 0.5
+        prop_data.loc[prop_data.index[prop_data_marks_true], col_name] = 'TRUE'
+        prop_data.loc[prop_data.index[~prop_data_marks_true], col_name] = 'FALSE'
+    if not train_data[col_name].dtype == 'O':
+        train_data_marks_true = train_data[col_name] >= 0.5
+        train_data.loc[train_data.index[train_data_marks_true], col_name] = 'TRUE'
+        train_data.loc[train_data.index[~train_data_marks_true], col_name] = 'FALSE'
+
+
 def multi_trade_analysis(error_data_inp):
     """an asset can be traded more than once within a year, can multi_trade related to large error? should we exclude these samples from training?"""
     error_data = error_data_inp.copy()
@@ -158,6 +170,88 @@ def property_cleaning_naive():
     prop_data.loc[prop_data.index[prop_data['hashottuborspa'].isnull()], 'hashottuborspa'] = 'FALSE'
     train_data.loc[train_data.index[train_data['hashottuborspa'].isnull()], 'hashottuborspa'] = 'FALSE'
     KEEP_FEATURE.add('hashottuborspa')
+
+    # heatingorsystemtypeid, missing rate 0.3788, good discrimination power
+    RENAMING_MAP['heatingorsystemtypeid'] = 'type_heating_system'
+    cat_num_to_str('heatingorsystemtypeid')
+    prop_data['heatingorsystemtypeid'].loc[prop_data['heatingorsystemtypeid'].index[
+    prop_data['heatingorsystemtypeid'].apply(lambda x: x in {'19', '21'})]] = np.nan
+    KEEP_FEATURE.add('heatingorsystemtypeid')
+
+    # latitude, no missing in training, few missing in prop, impute with mean
+    RENAMING_MAP['latitude'] = 'latitude'
+    KEEP_FEATURE.add('latitude')
+    prop_data['latitude'].fillna(prop_data['latitude'].mean(), inplace=True)
+
+    # longitude, no missing in training, few missing in prop, inpute with mean
+    RENAMING_MAP['longitude'] = 'longitude'
+    KEEP_FEATURE.add('longitude')
+    prop_data['longitude'].fillna(prop_data['longitude'].mean(), inplace=True)
+
+    # lotsizesquarefeet, missing rate 0.1124
+    RENAMING_MAP['lotsizesquarefeet'] = 'area_lot'
+    KEEP_FEATURE.add('lotsizesquarefeet')
+
+    # poolcnt, cast to bool categorical, no missing.
+    RENAMING_MAP['poolcnt'] = 'flag_pool'
+    mark_flag_col('poolcnt')
+    KEEP_FEATURE.add('poolcnt')
+
+    # poolsizesum, set pool num == FALSE to size = 0. missing rate = 0.1876, keep it.
+    RENAMING_MAP['poolsizesum'] = 'area_pool'
+    prop_data.loc[prop_data.index[prop_data['poolcnt'] == 'FALSE'], 'poolsizesum'] = 0
+    train_data.loc[train_data.index[train_data['poolcnt'] == 'FALSE'], 'poolsizesum'] = 0
+    KEEP_FEATURE.add('poolsizesum')
+
+    # pooltypeid10, high missing rate, counter intuitive values. drop it
+    RENAMING_MAP['pooltypeid10'] = 'type_pool_assessor'
+
+    # pooltypeid2 and pooltypeid7, mutually exclusive information, overlapped information with pool_num,
+    # imbalanced group size, drop both.
+    RENAMING_MAP['pooltypeid2'] = 'flag_pool_type2'
+    mark_flag_col('pooltypeid2')
+    RENAMING_MAP['pooltypeid7'] = 'flag_pool_type7'
+    mark_flag_col('pooltypeid7')
+
+    def make_pool_type(data):
+        data['flag_pool_type'] = 'None'
+        data.loc[data.index[data['pooltypeid2'] == 'TRUE'], 'flag_pool_type'] = 'TRUE'
+        data.loc[data.index[data['pooltypeid7'] == 'TRUE'], 'flag_pool_type'] = 'FALSE'
+
+    make_pool_type(prop_data)
+    make_pool_type(train_data)
+    RENAMING_MAP['flag_pool_type'] = 'flag_pool_type'
+
+    # propertycountylandusecode, no missing in train, few missing in prop. 78 categories
+    RENAMING_MAP['propertycountylandusecode'] = 'code_county_landuse'
+    prop_data['propertycountylandusecode'].fillna(prop_data['propertycountylandusecode'].mode()[0], inplace=True)
+    KEEP_FEATURE.add('propertycountylandusecode')
+
+    # propertylandusetypeid, no missing in train, few missing in prop, one category in prop not in train
+    RENAMING_MAP['propertylandusetypeid'] = 'type_landuse'
+    cat_num_to_str('propertylandusetypeid')
+    prop_data['propertylandusetypeid'].loc[prop_data['propertylandusetypeid'].index[prop_data['propertylandusetypeid'] == '270']] = np.nan
+    prop_data['propertylandusetypeid'].fillna(prop_data['propertylandusetypeid'].mode()[0], inplace=True)
+    KEEP_FEATURE.add('propertylandusetypeid')
+
+    # propertyzoningdesc, 1997 categories with 0.3541 missing rate, let's skip it for the moment.
+    RENAMING_MAP['propertyzoningdesc'] = 'str_zoning_desc'
+
+    # rawcensustractandblock, 3002 groups for raw_census, 686 groups for raw_blocks, let's skip both for the moment.
+    def raw_census_info_split(data):
+        data['temp'] = data['rawcensustractandblock'].apply(
+            lambda x: str(round(x * 1000000)) if not np.isnan(x) else 'nan')
+        data['temp'] = data['temp'].astype('O')
+        data['raw_census'] = data['temp'].apply(lambda x: x[4:10] if not x == 'nan' else np.nan)
+        data['raw_block'] = data['temp'].apply(lambda x: x[10:] if not x == 'nan' else np.nan)
+        data.drop('temp', axis=1, inplace=True)
+
+    raw_census_info_split(prop_data)
+    raw_census_info_split(train_data)
+    prop_data['raw_census'].fillna(prop_data['raw_census'].mode()[0], inplace=True)
+    prop_data['raw_block'].fillna(prop_data['raw_block'].mode()[0], inplace=True)
+
+
 
 def property_cleaning_kaggle():
     """for real kaggle submission, considering:
