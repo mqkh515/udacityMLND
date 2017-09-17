@@ -1,0 +1,6 @@
+model_name,training_cv,testing,tag
+naive_mean,0.068731,0.0651282,
+naive_lgb,0.067154,0.0645428,
+naive_lgb_feature_downsize,0.067191,,
+naive_lgb_with_class4,0.0671432,0.0644639,
+naive_lgb_final,0.067142,0.0644925,20170917_v4

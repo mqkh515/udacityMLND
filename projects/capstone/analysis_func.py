@@ -1,24 +1,15 @@
+def multi_trade_analysis(error_data_inp):
+    """an asset can be traded more than once within a year, can multi_trade related to large error? should we exclude these samples from training?"""
+    error_data = error_data_inp.copy()
+    print('average abs logerror in all traning transactions: %4.4f' % np.abs(error_data['logerror']).mean())  # 0.0684
+    n_trade = error_data['logerror'].groupby(error_data['parcelid']).count()
+    multi_trade_count = n_trade[n_trade > 1]
+    print('number of parcels traded more than once in training data: %d' % len(multi_trade_count))  # 124, number too small
+    multi_trade_parcel_set = set(multi_trade_count.index.values)
+    error_data['is_multi_trade'] = error_data['parcelid'].apply(lambda x: x in multi_trade_parcel_set)
+    error_data_multi_trade = error_data[error_data['is_multi_trade']]
+    print('average abs logerror in all multi_trade transactions: %4.4f' % np.abs(error_data
 
-# categorical var analysis block
-
-print('data type:' + str(prop_data['airconditioningtypeid'].dtype))
-cat_num_to_str('airconditioningtypeid')
-cat_feature_analysis('airconditioningtypeid')
-prop_missing, train_missing = missing_ratio('airconditioningtypeid')
-if (prop_missing + train_missing) < 1.5:
-    visual_analysis_cat('airconditioningtypeid', 'type_air_conditioning')
-
-
-# numerical var analysis block
-
-prop_missing, train_missing = missing_ratio('basementsqft')
-if prop_missing + train_missing < 1.5:
-    visual_analysis_num('basementsqft', 'area_base_finished')
-
-
-# add feature
-feature_info['airconditioningtypeid'] = ['type_air_conditioning', 'cat', 2, prop_missing, train_missing]
-categorical_groups_keep_list['airconditioningtypeid'] = ['1', '13']
 
 # pairs
 num_bathroom_assessor, num_bathroom_zillow

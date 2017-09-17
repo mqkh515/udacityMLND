@@ -37,7 +37,7 @@ poolsizesum,area_pool,num,2,0.163999468,0.187560233
 pooltypeid10,type_pool_assessor,cat,4,0,0
 pooltypeid2,flag_pool_type_2,cat,4,0,0
 pooltypeid7,flag_pool_type_7,cat,4,0,0
-propertycountylandusecode,code_county_landuse,cat,1,0.003831212,0
+propertycountylandusecode,code_county_landuse,cat,3,0.003831212,0
 propertylandusetypeid,type_landuse,cat,1,0.003831,0
 propertyzoningdesc,str_zoning_desc,cat,3,0.337190898,0.354051509
 raw_block,raw_block,cat,3,0.003831212,0
