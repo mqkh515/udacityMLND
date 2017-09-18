@@ -192,6 +192,7 @@ def property_cleaning_base(train_data, test_data):
     # code_ips, no missing in train
     cat_num_to_str('fips')
     col_fill_na(test_data, 'fips', 'mode')
+    col_fill_na(train_data, 'fips', 'mode')
 
     # num_fireplace
     # col_fill_na(test_data, 'fireplacecnt', '0')
@@ -240,14 +241,18 @@ def property_cleaning_base(train_data, test_data):
     make_pool_type(train_data)
 
     # code_county_landuse
+    cat_num_to_str('propertycountylandusecode')
     col_fill_na(test_data, 'propertycountylandusecode', 'mode')
+    col_fill_na(train_data, 'propertycountylandusecode', 'mode')
 
     # code_county_landuse
     cat_num_to_str('propertylandusetypeid')
     clear_cat_col_group(test_data, 'propertylandusetypeid', ['270'])
     col_fill_na(test_data, 'propertylandusetypeid', 'mode')
+    col_fill_na(train_data, 'propertylandusetypeid', 'mode')
 
     # str_zoning_desc
+    cat_num_to_str('propertyzoningdesc')
 
     # raw_census_block, raw_census, raw_block.
     raw_census_info_split()
@@ -313,19 +318,6 @@ def property_cleaning_base(train_data, test_data):
     census_info_split()
 
 
-def multi_trade_analysis(error_data_inp):
-    """an asset can be traded more than once within a year, can multi_trade related to large error? should we exclude these samples from training?"""
-    error_data = error_data_inp.copy()
-    print('average abs logerror in all traning transactions: %4.4f' % np.abs(error_data['logerror']).mean())  # 0.0684
-    n_trade = error_data['logerror'].groupby(error_data['parcelid']).count()
-    multi_trade_count = n_trade[n_trade > 1]
-    print('number of parcels traded more than once in training data: %d' % len(multi_trade_count))  # 124, number too small
-    multi_trade_parcel_set = set(multi_trade_count.index.values)
-    error_data['is_multi_trade'] = error_data['parcelid'].apply(lambda x: x in multi_trade_parcel_set)
-    error_data_multi_trade = error_data[error_data['is_multi_trade']]
-    print('average abs logerror in all multi_trade transactions: %4.4f' % np.abs(error_data_multi_trade['logerror']).mean())  # 0.0921
-
-
 def load_data_raw():
     # init load data
     prop_data = pd.read_csv('data/properties_2016.csv', header=0)
@@ -355,7 +347,11 @@ def convert_cat_col(train_data, test_data, col):
     uni_vals = np.sort(test_data[col].unique()).tolist()
 
     m = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
-    train_data.loc[:, col] = train_data[col].apply(lambda x: m[x])
+    try:
+        train_data.loc[:, col] = train_data[col].apply(lambda x: m[x])
+    except:
+        a = 1
+        raise
     train_data.loc[:, col] = train_data[col].astype('category')
 
     test_data.loc[:, col] = test_data[col].apply(lambda x: m[x])
@@ -622,18 +618,18 @@ def search_lgb_random(train_x, train_y):
     lgb_train = lgb.Dataset(train_x, train_y)
 
     def rand_min_data_in_leaf():
-        return np.random.randint(100, 500)
+        return np.random.randint(200, 500)
 
     def rand_learning_rate():
-        return np.random.uniform(0.008, 0.012)
+        return np.random.uniform(0.005, 0.015)
 
     def rand_num_leaf():
-        return np.random.randint(30, 40)
+        return np.random.randint(30, 50)
 
     def rand_lambda_l2():
-        return np.random.uniform(0.01, 0.04)
+        return np.random.uniform(0.01, 0.05)
 
-    n_trail = 100
+    n_trail = 30
     res = []
     for i in range(1, n_trail + 1):
         rand_params = {'num_leaves': rand_num_leaf(),
@@ -650,7 +646,7 @@ def search_lgb_random(train_x, train_y):
             'verbosity': 0
         }
         params.update(rand_params)
-        eval_hist = lgb.cv(params, lgb_train, num_boost_round=2000, early_stopping_rounds=30)
+        eval_hist = lgb.cv(params, lgb_train, num_boost_round=2500, early_stopping_rounds=30)
         res.append([eval_hist['l1-mean'][-1],
                     rand_params['num_leaves'],
                     rand_params['min_data_in_leaf'],
@@ -758,12 +754,25 @@ def feature_engineering(train_x_inp, train_data, test_x_inp, test_data):
     feature_engineering_inner(test_x, test_data)
     feature_engineering_inner(train_x, train_data)
     convert_cat_col(train_x, test_x, 'num_fullbath_clean')
+
     # class 3 variables
-    for name in ('code_city', 'code_neighborhood', 'code_zip', 'raw_block', 'block', 'str_zoning_desc', 'code_county_landuse'):
-        used_name = name + '_orig'  # not directly use original name here as naive lgb assumes all potential original cols have been used
+    def class3_var_prep(name):
+        used_name = name + '_orig'
         train_x[used_name] = train_data[nmap_new_to_orig[name]]
         test_x[used_name] = test_data[nmap_new_to_orig[name]]
+        # fill test_only categories with mode
+        train_col_nonan = train_data[nmap_new_to_orig[name]][~train_data[nmap_new_to_orig[name]].isnull()]
+        test_col_nonan = test_data[nmap_new_to_orig[name]][~test_data[nmap_new_to_orig[name]].isnull()]
+        train_cats = train_col_nonan.unique()
+        test_cats = test_col_nonan.unique()
+        test_only_cats = set(test_cats) - set(train_cats)
+        marker = test_data[nmap_new_to_orig[name]].apply(lambda x: x in test_only_cats)
+        test_x.loc[marker, used_name] = test_col_nonan.mode()[0]
         convert_cat_col(train_x, test_x, used_name)
+
+    for name in ('code_city', 'code_neighborhood', 'code_zip', 'raw_block', 'block', 'str_zoning_desc', 'code_county_landuse'):
+        class3_var_prep(name)
+
     return train_x, test_x
 
 
