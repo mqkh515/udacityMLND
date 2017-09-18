@@ -7,12 +7,14 @@ import datetime
 import matplotlib.pyplot as plt
 import lightgbm as lgb
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
 
 
-feature_info = pd.read_csv('data/feature_info.csv')
-nmap_orig_to_new =  dict(zip(feature_info['orig_name'].values, feature_info['new_name'].values))
-nmap_new_to_orig =  dict(zip(feature_info['new_name'].values, feature_info['orig_name'].values))
+feature_info = pd.read_csv('data/feature_info.csv', index_col='orig_name')
+nmap_orig_to_new =  dict(zip(feature_info.index.values, feature_info['new_name'].values))
+nmap_new_to_orig =  dict(zip(feature_info['new_name'].values, feature_info.index.values))
+
+feature_imp_naive_lgb_split = pd.read_csv('records/feature_importance_split_naive_lgb.csv')
+feature_imp_naive_lgb_gain = pd.read_csv('records/feature_importance_gain_naive_lgb.csv')
 
 
 def cv_mean_model(train_y):
@@ -38,15 +40,26 @@ def cv_mean_model(train_y):
     return np.mean(evals)
 
 
+def cv_meta_model(train_x, train_y, model, pre_applyfunc=None, post_applyfuc=None):
+    """cv for applyfunc, transformation of inp data or out data in addition to applying model, cannot do with built-in cv.
+       for now, pre_applyfunc is designed for row outlier cleaning.
+       post_applyfunc is for seasonality handling."""
+    pass
+
+
+def cat_num_to_str_inner(data, col_name):
+    """for numeric-like categorical varible, transform to string, keep nan"""
+    if not data[col_name].dtype == 'O':
+        data.loc[:, col_name] = data[col_name].apply(lambda x: str(int(x)) if not np.isnan(x) else np.nan)
+
+
 def property_cleaning_base(train_data, test_data):
     """basic feature clearning"""
 
     def cat_num_to_str(col_name):
         """for numeric-like categorical varible, transform to string, keep nan"""
-        if not test_data[col_name].dtype == 'O':
-            test_data.loc[:, col_name] = test_data[col_name].apply(lambda x: str(int(x)) if not np.isnan(x) else np.nan)
-        if not train_data[col_name].dtype == 'O':
-            train_data.loc[:, col_name] = train_data[col_name].apply(lambda x: str(int(x)) if not np.isnan(x) else np.nan)
+        cat_num_to_str_inner(train_data, col_name)
+        cat_num_to_str_inner(test_data, col_name)
 
     def mark_flag_col(col_name):
         """mark bool for numerical columns, mark True for val > 0, and False otherwise (include NaN)"""
@@ -184,7 +197,6 @@ def property_cleaning_base(train_data, test_data):
     # col_fill_na(test_data, 'fireplacecnt', '0')
 
     # num_fullbath
-    # nan_impute_fullbathcnt()
 
     # num_garage
 
@@ -232,8 +244,8 @@ def property_cleaning_base(train_data, test_data):
 
     # code_county_landuse
     cat_num_to_str('propertylandusetypeid')
-    col_fill_na(test_data, 'propertylandusetypeid', 'mode')
     clear_cat_col_group(test_data, 'propertylandusetypeid', ['270'])
+    col_fill_na(test_data, 'propertylandusetypeid', 'mode')
 
     # str_zoning_desc
 
@@ -249,7 +261,7 @@ def property_cleaning_base(train_data, test_data):
     cat_num_to_str('regionidcounty')
 
     # code_neighborhood
-    cat_num_to_str('regionidneighborhood')
+    cat_num_to_str( 'regionidneighborhood')
 
     # code_zip
     cat_num_to_str('regionidzip')
@@ -298,18 +310,7 @@ def property_cleaning_base(train_data, test_data):
     cat_num_to_str('taxdelinquencyyear')
 
     # census_block
-
-
-def property_engineering():
-    """for real kaggle submission, considering:
-       1, outlier detection.
-       2, missing data imputation from prop data.
-       3, categorical variables group combining."""
-    pass
-
-
-def property_imputation(col_name):
-    pass
+    census_info_split()
 
 
 def multi_trade_analysis(error_data_inp):
@@ -343,39 +344,57 @@ def load_data_raw():
     return train_data, test_data
 
 
-def load_data_naive_lgb(train_data, test_data):
-    # load features
-    feature_info = pd.read_csv('data/feature_info.csv', index_col='orig_name')
+def convert_cat_col(train_data, test_data, col):
+    """version for production training & testing, make sure both data sets uses the same value map"""
+    # convert to lgb usable categorical
+    # set nan to string so that can be sorted, make sure training set and testing set get the same coding
+    test_data.loc[test_data.index[test_data[col].isnull()], col] = 'nan'
+    train_data.loc[train_data.index[train_data[col].isnull()], col] = 'nan'
 
+    # create and use map from test data only
+    uni_vals = np.sort(test_data[col].unique()).tolist()
+
+    m = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
+    train_data.loc[:, col] = train_data[col].apply(lambda x: m[x])
+    train_data.loc[:, col] = train_data[col].astype('category')
+
+    test_data.loc[:, col] = test_data[col].apply(lambda x: m[x])
+    test_data.loc[:, col] = test_data[col].astype('category')
+
+
+def convert_cat_col_single(data, col):
+    # convert to lgb usable categorical
+    # set nan to string so that can be sorted, make sure training set and testing set get the same coding
+    data.loc[data.index[data[col].isnull()], col] = 'nan'
+    uni_vals = np.sort(data[col].unique()).tolist()
+    map = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
+    data.loc[:, col] = data[col].apply(lambda x: map[x])
+    data.loc[:, col] = data[col].astype('category')
+
+
+def load_data_naive_lgb(train_data, test_data):
     keep_feature = list(feature_info.index[feature_info['class'].apply(lambda x: True if x in {1, 2} else False)].values)
     test_x = test_data[keep_feature]
     train_x = train_data[keep_feature]
     train_y = train_data['logerror']
 
-    def cat_type_col_prep(data):
+    def float_type_cast(data):
         for col in data.columns:
-            if feature_info.loc[col, 'type'] == 'cat':
-                # convert to lgb usable categorical
-                # set nan to string so that can be sorted, make sure training set and testing set get the same coding
-                data.loc[data.index[data[col].isnull()], col] = 'nan'
-                uni_vals = np.sort(data[col].unique()).tolist()
-                map = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
-                data.loc[:, col] = data[col].apply(lambda x: map[x])
-                data.loc[:, col] = data[col].astype('category')
             if data[col].dtype == np.float64:
                 data.loc[:, col] = data[col].astype(np.float32)
 
     # type clearning
-    cat_type_col_prep(test_x)
-    cat_type_col_prep(train_x)
+    float_type_cast(test_x)
+    float_type_cast(train_x)
+    for col in set(train_x.columns).intersection(set(test_x.columns)):
+        if feature_info.loc[col, 'type'] == 'cat':
+            convert_cat_col(train_x, test_x, col)
 
     return test_x, train_x, train_y
 
 
 def load_data_naive_lgb_feature_up(train_data, test_data):
     # load features
-    feature_info = pd.read_csv('data/feature_info.csv', index_col='orig_name')
-
     keep_feature = list(feature_info.index[feature_info['class'].apply(lambda x: True if x in {1, 2, 4} else False)].values)
     for f in ['year_assess', 'census_block', 'raw_census_block']:
         # we have multiple year_assess values in test data, but only one value in train data
@@ -386,31 +405,23 @@ def load_data_naive_lgb_feature_up(train_data, test_data):
     train_x = train_data[keep_feature]
     train_y = train_data['logerror']
 
-    def cat_type_col_prep(data):
+    def float_type_cast(data):
         for col in data.columns:
-            if feature_info.loc[col, 'type'] == 'cat':
-                # convert to lgb usable categorical
-                # set nan to string so that can be sorted, make sure training set and testing set get the same coding
-                data.loc[data.index[data[col].isnull()], col] = 'nan'
-                uni_vals = np.sort(data[col].unique()).tolist()
-                map = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
-                data.loc[:, col] = data[col].apply(lambda x: map[x])
-                data.loc[:, col] = data[col].astype('category')
             if data[col].dtype == np.float64:
                 data.loc[:, col] = data[col].astype(np.float32)
 
     # type clearning
-    cat_type_col_prep(test_x)
-    cat_type_col_prep(train_x)
+    float_type_cast(test_x)
+    float_type_cast(train_x)
+    for col in set(train_x.columns).intersection(set(test_x.columns)):
+        if feature_info.loc[col, 'type'] == 'cat':
+            convert_cat_col(train_x, test_x, col)
 
     return test_x, train_x, train_y
 
 
 def load_data_naive_lgb_feature_down(train_data, test_data):
     """use subset of good features to see how it performance"""
-    # load features
-    feature_info = pd.read_csv('data/feature_info.csv', index_col='orig_name')
-
     keep_feature = list(feature_info.index[feature_info['class'].apply(lambda x: True if x == 1 else False)].values)
     keep_feature += [nmap_new_to_orig[n] for n in ['area_garage',
                                                    'rank_building_quality',
@@ -426,31 +437,23 @@ def load_data_naive_lgb_feature_down(train_data, test_data):
     train_x = train_data[keep_feature]
     train_y = train_data['logerror']
 
-    def cat_type_col_prep(data):
+    def float_type_cast(data):
         for col in data.columns:
-            if feature_info.loc[col, 'type'] == 'cat':
-                # convert to lgb usable categorical
-                data.loc[data.index[data[
-                    col].isnull()], col] = 'nan'  # set nan to string so that can be sorted, make sure training set and testing set get the same coding
-                uni_vals = np.sort(data[col].unique()).tolist()
-                map = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
-                data.loc[:, col] = data[col].apply(lambda x: map[x])
-                data.loc[:, col] = data[col].astype('category')
             if data[col].dtype == np.float64:
                 data.loc[:, col] = data[col].astype(np.float32)
 
     # type clearning
-    cat_type_col_prep(test_x)
-    cat_type_col_prep(train_x)
+    float_type_cast(test_x)
+    float_type_cast(train_x)
+    for col in set(train_x.columns).intersection(set(test_x.columns)):
+        if feature_info.loc[col, 'type'] == 'cat':
+            convert_cat_col(train_x, test_x, col)
 
     return test_x, train_x, train_y
 
 
 def load_data_naive_lgb_final(train_data, test_data):
     """use subset of good features to see how it performance"""
-    # load features
-    feature_info = pd.read_csv('data/feature_info.csv', index_col='orig_name')
-
     keep_feature = list(feature_info.index[feature_info['class'].apply(lambda x: True if x in {1, 2} else False)].values)
     keep_feature += [nmap_new_to_orig[n] for n in ['area_living_type_15',
                                                    'area_firstfloor_zillow',
@@ -464,22 +467,17 @@ def load_data_naive_lgb_final(train_data, test_data):
     train_x = train_data[keep_feature]
     train_y = train_data['logerror']
 
-    def cat_type_col_prep(data):
+    def float_type_cast(data):
         for col in data.columns:
-            if feature_info.loc[col, 'type'] == 'cat':
-                # convert to lgb usable categorical
-                data.loc[data.index[data[
-                    col].isnull()], col] = 'nan'  # set nan to string so that can be sorted, make sure training set and testing set get the same coding
-                uni_vals = np.sort(data[col].unique()).tolist()
-                map = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
-                data.loc[:, col] = data[col].apply(lambda x: map[x])
-                data.loc[:, col] = data[col].astype('category')
             if data[col].dtype == np.float64:
                 data.loc[:, col] = data[col].astype(np.float32)
 
     # type clearning
-    cat_type_col_prep(test_x)
-    cat_type_col_prep(train_x)
+    float_type_cast(test_x)
+    float_type_cast(train_x)
+    for col in set(train_x.columns).intersection(set(test_x.columns)):
+        if feature_info.loc[col, 'type'] == 'cat':
+            convert_cat_col(train_x, test_x, col)
 
     return test_x, train_x, train_y
 
@@ -515,7 +513,7 @@ def train_lgb_with_val(train_x, train_y):
     return gbm
 
 
-def train_lgb(train_x, train_y, num_boost_round=1000):
+def train_lgb(train_x, train_y, num_boost_round=1500):
 
     # create lgb dataset
     lgb_train = lgb.Dataset(train_x, train_y)
@@ -541,7 +539,7 @@ def train_lgb(train_x, train_y, num_boost_round=1000):
     return gbm
 
 
-def cv_lgb_final(train_x, train_y, num_boosting_round=1000):
+def cv_lgb_final(train_x, train_y, num_boosting_round=1500):
     lgb_train = lgb.Dataset(train_x, train_y)
     params = {
         'boosting_type': 'gbdt',
@@ -561,6 +559,7 @@ def cv_lgb_final(train_x, train_y, num_boosting_round=1000):
 
 
 def feature_importance(gbm, label=None):
+    """only applicable for niave gbm"""
     features = np.array(gbm.feature_name())
     feature_info = pd.read_csv('data/feature_info.csv', index_col='orig_name')
 
@@ -568,18 +567,17 @@ def feature_importance(gbm, label=None):
     sort_split = np.argsort(importance_split)
     sort_split = sort_split[::-1]
     features_split_sort = features[sort_split]
-    features_name_new_split = [feature_info.loc[f, 'new_name'] for f in features_split_sort]
-    features_class_split = [feature_info.loc[f, 'class'] for f in features_split_sort]
+    features_name_new_split = [feature_info.loc[f, 'new_name'] if f in feature_info.index else f for f in features_split_sort]
+    features_class_split = [feature_info.loc[f, 'class'] if f in feature_info.index else 'new' for f in features_split_sort]
     importance_split_sort = importance_split[sort_split]
 
     importance_gain = gbm.feature_importance('gain')
     sort_gain = np.argsort(importance_gain)
     sort_gain = sort_gain[::-1]
     features_gain_sort = features[sort_gain]
-    features_name_new_gain = [feature_info.loc[f, 'new_name'] for f in features_gain_sort]
-    features_class_gain = [feature_info.loc[f, 'class'] for f in features_gain_sort]
+    features_name_new_gain = [feature_info.loc[f, 'new_name'] if f in feature_info.index else f for f in features_gain_sort]
+    features_class_gain = [feature_info.loc[f, 'class'] if f in feature_info.index else 'new' for f in features_gain_sort]
     importance_gain_sort = importance_gain[sort_gain]
-
 
     df_split = pd.DataFrame({'feature': features_name_new_split, 'split': importance_split_sort, 'class': features_class_split})
     df_gain = pd.DataFrame({'feature': features_name_new_gain, 'gain': importance_gain_sort, 'class': features_class_gain})
@@ -593,31 +591,31 @@ def feature_importance(gbm, label=None):
     return df_split, df_gain
 
 
-def feature_rank_importance(gbm, col):
-    """returns the rank of given feature, input col should be new name convention
-       NOTE, for raw features, gbm uses orig name"""
-    if col in nmap_new_to_orig:
-        col = nmap_new_to_orig[col]
-    features = np.array(gbm.feature_name())
-    n_features = features.shape[0]
-    imp_split = gbm.feature_importance('split')
-    imp_gain = gbm.feature_importance('gain')
+def feature_importance_rank(gbm, col_inp, col_ref=None):
+    """returns the rank (avg of split and gain) of given feature, input col should be new-name-convention.
+       if col_ref is provided, also output rank for col_ref, for comparison"""
+    col_inp_orig = nmap_new_to_orig[col_inp] if col_inp in nmap_new_to_orig else col_inp
+    col_ref_orig = nmap_new_to_orig[col_ref] if col_ref in nmap_new_to_orig else col_ref
 
-    def feature_rank_importance_inner(imp, col, fs):
-        sort_imp = np.argsort(imp)
-        sort_imp = sort_imp[::-1]
-        fs_sort = fs[sort_imp]
-        fs_sort_list = fs_sort.tolist()
-        return fs_sort_list.index(col)
+    features = gbm.feature_name()
+    n_features = len(features)
+    print('n_features total: %d' % n_features)
 
-    rank_split = feature_rank_importance_inner(imp_split, col, features)
-    rank_gain = feature_rank_importance_inner(imp_gain, col, features)
-    return rank_split + 1, rank_gain + 1, n_features
+    def feature_rank_importance_inner(gbm, col):
+        features = gbm.feature_name()
+        feature_idx = features.index(col)
+        # use reverse order in rank
+        rank_feature_split = n_features - np.argsort(np.argsort(gbm.feature_importance('split')))[feature_idx]
+        rank_feature_gain = n_features - np.argsort(np.argsort(gbm.feature_importance('gain')))[feature_idx]
+        return rank_feature_split, rank_feature_gain, (rank_feature_split + rank_feature_gain) / 2
 
-
-def orig_feature_rank_importrance_avg(col, type):
-    """avg importance rank between split and gain. from naive lgb models.
-       have 2 types: 12 and 12"""
+    rank_inp_split, rank_inp_gain, rank_inp_avg = feature_rank_importance_inner(gbm, col_inp_orig)
+    print('%s: rank split = %d, rank gain = %d, avg_rank = %.1f' % (col_inp, rank_inp_split, rank_inp_gain, rank_inp_avg))
+    if col_ref:
+        rank_ref_split = list(feature_imp_naive_lgb_split['feature']).index(col_ref) + 1
+        rank_ref_gain = list(feature_imp_naive_lgb_gain['feature']).index(col_ref) + 1
+        rank_ref_avg = (rank_ref_split + rank_ref_gain) / 2
+        print('%s: rank split = %d, rank gain = %d, avg_rank = %.1f' % (col_ref, rank_ref_split, rank_ref_gain, rank_ref_avg))
 
 
 def search_lgb_random(train_x, train_y):
@@ -703,22 +701,72 @@ def search_lgb_grid(train_x, train_y):
     res_df.to_csv('temp_cv_res_grid.csv', index=False)
 
 
-def submit_nosea(score, index, v):
+def submit_nosea(score, index, ver):
     df = pd.DataFrame()
     df['ParcelId'] = index
     for col in ('201610', '201611', '201612', '201710', '201711', '201712'):
         df[col] = score
     date_str = ''.join(str(datetime.date.today()).split('-'))
     print(df.shape)
-    df.to_csv('data/submission_%s_v%d.csv.gz' % (date_str, v), index=False, float_format='%.4f', compression='gzip')
+    df.to_csv('data/submission_%s_v%d.csv.gz' % (date_str, ver), index=False, float_format='%.4f', compression='gzip')
 
 
-def pred_nosea():
+def pred_nosea(model, test_x):
     train_data, test_data = load_data_raw()
     test_x, train_x, train_y = load_data_naive_lgb(train_data, test_data)
     trained_gbm = train_lgb(train_x, train_y)
     pred_score = trained_gbm.predict(test_x)
     submit_nosea(pred_score, test_data['parcelid'], 2)
+
+
+def feature_engineering(train_x_inp, train_data, test_x_inp, test_data):
+
+    def feature_engineering_inner(target_data, raw_data):
+        """target_data are those used for model input, it is output from naive lgb selection, thus does not contain all features"""
+        # number_full_bath
+        orig_name_fullbath = nmap_new_to_orig['num_fullbath']
+        orig_name_bath = nmap_new_to_orig['num_bathroom_assessor']
+        # first impute nan
+        null_idx = raw_data.index[raw_data[orig_name_fullbath].isnull()]
+        fill_val = raw_data[orig_name_bath][null_idx].copy()
+        fill_val_floor = fill_val.apply(math.floor)
+        int_idx = np.abs(fill_val.values - fill_val_floor.values) < 1e-12
+        fill_val[int_idx] = np.maximum(fill_val[int_idx] - 1, 0)
+        fill_val[~int_idx] = fill_val_floor[~int_idx]
+        target_data['num_fullbath_impute'] = raw_data[orig_name_fullbath]
+        target_data.loc[null_idx, 'num_fullbath_impute'] = fill_val
+        # then group types
+        target_data['num_fullbath_clean'] = target_data['num_fullbath_impute']
+        target_data.loc[target_data.index[target_data['num_fullbath_clean'] >= 6], 'num_fullbath_clean'] = 6
+        cat_num_to_str_inner(target_data, 'num_fullbath_clean')
+        target_data.drop('num_fullbath_impute', axis=1, inplace=True)
+
+        # dollar_taxvalue variables
+        orig_name_structrue = nmap_new_to_orig['dollar_taxvalue_structure']
+        orig_name_land = nmap_new_to_orig['dollar_taxvalue_land']
+        orig_name_total = nmap_new_to_orig['dollar_taxvalue_total']
+        target_data['dollar_taxvalue_structure_land_diff'] = raw_data[orig_name_structrue] - raw_data[orig_name_land]
+        target_data['dollar_taxvalue_structure_land_absdiff'] = np.abs(raw_data[orig_name_structrue] - raw_data[orig_name_land])
+        target_data['dollar_taxvalue_structure_total_ratio'] = raw_data[orig_name_structrue] / raw_data[orig_name_total]
+        target_data['dollar_taxvalue_structure_land_ratio'] = raw_data[orig_name_structrue] / raw_data[orig_name_land]
+        target_data['dollar_taxvalue_total_structure_ratio'] = raw_data[orig_name_total] / raw_data[orig_name_structrue]
+        target_data['dollar_taxvalue_total_land_ratio'] = raw_data[orig_name_total] / raw_data[orig_name_land]
+        target_data['dollar_taxvalue_land_structure_ratio'] = raw_data[orig_name_land] / raw_data[orig_name_structrue]
+
+    test_x = test_x_inp.copy()
+    train_x = train_x_inp.copy()
+    feature_engineering_inner(test_x, test_data)
+    feature_engineering_inner(train_x, train_data)
+    convert_cat_col(train_x, test_x, 'num_fullbath_clean')
+    # class 3 variables
+    for name in ('code_city', 'code_neighborhood', 'code_zip', 'raw_block', 'block', 'str_zoning_desc', 'code_county_landuse'):
+        used_name = name + '_orig'  # not directly use original name here as naive lgb assumes all potential original cols have been used
+        train_x[used_name] = train_data[nmap_new_to_orig[name]]
+        test_x[used_name] = test_data[nmap_new_to_orig[name]]
+        convert_cat_col(train_x, test_x, used_name)
+    return train_x, test_x
+
+
 
 
 
