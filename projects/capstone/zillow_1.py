@@ -131,7 +131,7 @@ def outlier_x_clean(train_x, train_y, test_x, type_train='rm', type_test='na'):
        Note, for each numerical variables, need to consider to do one-side or 2-sided cleaning"""
     rm_idx_train = []
 
-    def prec_outlier_num(col, q_down, q_up):
+    def proc_outlier_num(col, q_down, q_up):
         """use -1 if one side of data is not trimmed"""
         name = nmap_new_to_orig[col] if col in nmap_new_to_orig else col
         thresh_up = test_x[name].quantile(q_up) if q_up > 0 else np.inf  # Series.quantile has already considered NA
@@ -149,7 +149,7 @@ def outlier_x_clean(train_x, train_y, test_x, type_train='rm', type_test='na'):
             test_x.loc[idx_test, name] = np.nan
 
     # year built
-    prec_outlier_num('year_built', 0.001, -1)
+    proc_outlier_num('year_built', 0.001, -1)
 
     # latitude
 
@@ -172,7 +172,8 @@ def cat_num_to_str_inner(data, col_name):
 
 
 def property_cleaning_base(train_data, test_data):
-    """basic feature clearning"""
+    """basic feature clearning, for num_ variables, use as categorical. 
+       for categorical variables, group small categories"""
 
     def cat_num_to_str(col_name):
         """for numeric-like categorical varible, transform to string, keep nan"""
@@ -465,11 +466,7 @@ def convert_cat_col(train_data, test_data, col):
     uni_vals = np.sort(test_data[col].unique()).tolist()
 
     m = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
-    try:
-        train_data.loc[:, col] = train_data[col].apply(lambda x: m[x])
-    except:
-        a = 1
-        raise
+    train_data.loc[:, col] = train_data[col].apply(lambda x: m[x])
     train_data.loc[:, col] = train_data[col].astype('category')
 
     test_data.loc[:, col] = test_data[col].apply(lambda x: m[x])
@@ -790,7 +787,10 @@ def pred_nosea(model, test_x):
     submit_nosea(pred_score, test_data['parcelid'], 2)
 
 
-def feature_engineering(train_x_inp, train_data, test_x_inp, test_data):
+NUM_VARS = ('area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
+
+
+def new_feature_base(train_x_inp, train_data, test_x_inp, test_data):
 
     def feature_engineering_inner(target_data, raw_data):
         """target_data are those used for model input, it is output from naive lgb selection, thus does not contain all features"""
@@ -852,6 +852,48 @@ def feature_engineering(train_x_inp, train_data, test_x_inp, test_data):
         class3_var_prep(name)
 
     return train_x, test_x
+
+
+def group_feature_gen(data, cat_var):
+    """generate group mean / diff_mean / ratio_mean / rank features for all numerical variables"""
+    cat_var_orig = nmap_new_to_orig[cat_var]
+    out_data = pd.DataFrame()  # return new feature as a independent DataFrame
+    out_data[cat_var] = data
+    # count
+
+    rname_orig = nmap_new_to_orig[rname]
+    data_out = data.copy()
+    data_out['parcelid'] = raw_data['parcelid']
+    # region parcel count
+    data_region = pd.DataFrame()
+    data_region['parcelid'] = raw_data['parcelid']
+    data_region[rname] = raw_data[rname_orig]
+    data_region = data_region.join(data_region.groupby(rname)['parcelid'].count(), on=rname, rsuffix='_%s_count' % rname)
+    set_na_idx = data_region['parcelid_%s_count' % rname] <= data_region['parcelid_%s_count' % rname].quantile(0.01)
+    # for v in ('area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_total', 'dollar_taxvalue_land', 'dollar_taxvalue_structure'):
+    for v in ('area_lot',):
+        # region avg
+        data_region[v] = raw_data[nmap_new_to_orig[v]]
+        data_region = data_region.join(data_region.groupby(rname)[v].mean(), on=rname, rsuffix='_%s_avg' % rname)
+        # neutral
+        data_region[v + '_%s_neu' % rname] = data_region[v] - data_region[v + '_%s_avg' % rname]
+        # ratio
+        data_region[v + '_%s_ratio' % rname] = data_region[v] / data_region[v + '_%s_avg' % rname]
+        data_region.loc[data_region.index[data_region[v + '_%s_avg' % rname] < 1], v + '_%s_ratio' % rname] = np.nan
+        # rank
+        data_region = data_region.join(data_region.groupby(rname)[v].rank(), on=rname, rsuffix='_%s_rank_raw' % rname)
+        data_region[v + '_%s_rank' % rname] = data_region[v + '_%s_rank_raw' % rname] / data_region['parcelid_%s_count' % rname]
+        data_region.drop([v + '_%s_rank_raw' % rname, v], axis=1, inplace=True)
+    cols_ex_id = list(data_region.columns.values)
+    cols_ex_id.remove('parcelid')
+    cols_ex_id.remove(rname)
+    # set small region to nan
+    data_region.loc[set_na_idx, cols_ex_id] = np.nan
+    data_out = data_out.merge(data_region, on='parcelid', how='left')
+    data_out.drop(['parcelid', rname], axis=1, inplace=True)
+    return data_out, cols_ex_id
+
+# CANNOT use parcelid to join for train data, it is not unique
 
 
 
