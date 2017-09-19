@@ -16,6 +16,35 @@ nmap_new_to_orig =  dict(zip(feature_info['new_name'].values, feature_info.index
 feature_imp_naive_lgb_split = pd.read_csv('records/feature_importance_split_naive_lgb.csv')
 feature_imp_naive_lgb_gain = pd.read_csv('records/feature_importance_gain_naive_lgb.csv')
 
+# n boosting rounds = 1500
+params_naive = {
+    'boosting_type': 'gbdt',
+    'objective': 'regression_l1',
+    'metric': {'l1'},
+    'num_leaves': 40,
+    'min_data_in_leaf': 300,
+    'learning_rate': 0.01,
+    'lambda_l2': 0.02,
+    'feature_fraction': 0.8,
+    'bagging_fraction': 0.7,
+    'bagging_freq': 5,
+    'verbosity': 0
+}
+
+# n boosting rounds = 2000
+params_fe = {
+    'boosting_type': 'gbdt',
+    'objective': 'regression_l1',
+    'metric': {'l1'},
+    'num_leaves': 40,
+    'min_data_in_leaf': 200,
+    'learning_rate': 0.005,
+    'lambda_l2': 0.01,
+    'feature_fraction': 0.8,
+    'bagging_fraction': 0.7,
+    'bagging_freq': 5,
+    'verbosity': 0
+}
 
 def cv_mean_model(train_y):
     np.random.seed(42)
@@ -40,11 +69,100 @@ def cv_mean_model(train_y):
     return np.mean(evals)
 
 
-def cv_meta_model(train_x, train_y, model, pre_applyfunc=None, post_applyfuc=None):
+def cv_meta_model(x, y, train_model_func, outlier_thresh_y=0.001, outlier_handling=None, seanality_handling=None):
     """cv for applyfunc, transformation of inp data or out data in addition to applying model, cannot do with built-in cv.
        for now, pre_applyfunc is designed for row outlier cleaning.
-       post_applyfunc is for seasonality handling."""
-    pass
+       post_applyfunc is for seasonality handling.
+       expected input format, y being a Series, x being a DataFrame"""
+    np.random.seed(42)
+    idx = np.array(range(y.shape[0]))
+    np.random.shuffle(idx)
+    n_fold = 5  # same as in lightGBM.cv
+    fold_size = int(y.shape[0] / n_fold) + 1
+
+    evals = np.zeros(n_fold)
+    for n in range(n_fold):
+        if n == 0:
+            train_x_cv, train_y_cv = x.iloc[idx[fold_size:], :], y.iloc[idx[fold_size:]]
+            test_x_cv, test_y_cv = x.iloc[idx[:fold_size], :], y.iloc[idx[:fold_size]]
+        elif n == n_fold - 1:
+            train_x_cv, train_y_cv = x.iloc[idx[-fold_size:], :], y.iloc[idx[-fold_size:]]
+            test_x_cv, test_y_cv = x.iloc[idx[:-fold_size], :], y.iloc[idx[:-fold_size]]
+        else:
+            train_x_cv = pd.concat([x.iloc[idx[: fold_size * n], :], x.iloc[idx[fold_size * (n + 1):], :]])
+            train_y_cv = pd.concat([y.iloc[idx[: fold_size * n]], y.iloc[idx[fold_size * (n + 1):]]])
+            test_x_cv = x.iloc[idx[fold_size * n: fold_size * (n + 1)], :]
+            test_y_cv = y.iloc[idx[fold_size * n: fold_size * (n + 1)]]
+
+        if outlier_handling:
+            train_x_cv, train_y_cv = outlier_handling(train_x_cv, train_y_cv, outlier_thresh_y)
+        model = train_model_func(train_x_cv, train_y_cv)
+        pred_y_cv = model.predict(test_x_cv)
+        evals[n] = np.mean(np.abs(pred_y_cv - test_y_cv))
+    return np.mean(evals)
+
+
+def outlier_y_rm(train_x, train_y, thresh):
+    quantile_cut = thresh
+    down_thresh, up_thresh = train_y.quantile([quantile_cut, 1 - quantile_cut])
+    pos_ex_y_idx = train_y > up_thresh
+    neg_ex_y_idx = train_y < down_thresh
+    ex_y_idx = np.logical_or(pos_ex_y_idx, neg_ex_y_idx)
+    # remove outlier
+    train_x = train_x.loc[~ex_y_idx, :]
+    train_y = train_y[~ex_y_idx]
+    return train_x, train_y
+
+
+def outlier_y_capfloor(train_x, train_y, thresh):
+    quantile_cut = thresh
+    down_thresh, up_thresh = train_y.quantile([quantile_cut, 1 - quantile_cut])
+    pos_ex_y_idx = train_y > up_thresh
+    neg_ex_y_idx = train_y < down_thresh
+    # cap_floor outlier
+    train_y[pos_ex_y_idx] = up_thresh
+    train_y[neg_ex_y_idx] = down_thresh
+    return train_x, train_y
+
+
+def outlier_x_clean(train_x, train_y, test_x, type_train='rm', type_test='na'):
+    """2 strategies for x in train: remove, set to NA. (cap / floor is not expected to help for a tree based model).
+       2 strategies for test: set to NA, leave as it is. 
+       Note, for each numerical variables, need to consider to do one-side or 2-sided cleaning"""
+    rm_idx_train = []
+
+    def prec_outlier_num(col, q_down, q_up):
+        """use -1 if one side of data is not trimmed"""
+        name = nmap_new_to_orig[col] if col in nmap_new_to_orig else col
+        thresh_up = test_x[name].quantile(q_up) if q_up > 0 else np.inf  # Series.quantile has already considered NA
+        thresh_down = test_x[name].quantile(q_down) if q_down > 0 else -np.inf
+
+        pos_idx_train = train_x[name] >= thresh_up
+        neg_idx_train = train_x[name] <= thresh_down
+        pos_idx_test = test_x[name] >= thresh_up
+        neg_idx_test = test_x[name] <= thresh_down
+        idx_train = np.logical_or(pos_idx_train, neg_idx_train)
+        idx_test = np.logical_or(pos_idx_test, neg_idx_test)
+        rm_idx_train.append(idx_train)
+        train_x.loc[idx_train, name] = np.nan
+        if type_test == 'na':
+            test_x.loc[idx_test, name] = np.nan
+
+    # year built
+    prec_outlier_num('year_built', 0.001, -1)
+
+    # latitude
+
+
+
+
+
+
+
+
+def outlier_rm_x(train_x, train_y):
+    rm_idx = []
+    return train_x, train_y
 
 
 def cat_num_to_str_inner(data, col_name):
@@ -456,10 +574,9 @@ def load_data_naive_lgb_final(train_data, test_data):
                                                    'area_firstfloor_assessor',
                                                    'area_yard_patio',
                                                    'year_tax_due']]
-
     if len(keep_feature) != len(set(keep_feature)):
         raise Exception('duplicated feature')
-    test_x = test_data[keep_feature]
+    test_x = test_data[keep_feature + ['parcelid']]
     train_x = train_data[keep_feature]
     train_y = train_data['logerror']
 
@@ -478,27 +595,13 @@ def load_data_naive_lgb_final(train_data, test_data):
     return test_x, train_x, train_y
 
 
-def train_lgb_with_val(train_x, train_y):
+def train_lgb_with_val(train_x, train_y, params=params_naive):
     # train - validaiton split
     train_x_use, val_x, train_y_use, val_y = train_test_split(train_x, train_y, test_size=0.3, random_state=42)
 
     # create lgb dataset
     lgb_train = lgb.Dataset(train_x_use, train_y_use)
     lgb_val = lgb.Dataset(val_x, val_y, reference=lgb_train)
-
-    params = {
-        'boosting_type': 'gbdt',
-        'objective': 'regression_l1',
-        'metric': {'l1'},
-        'num_leaves': 40,
-        'min_data_in_leaf': 300,
-        'learning_rate': 0.01,
-        'lambda_l2': 0.02,
-        'feature_fraction': 0.8,
-        'bagging_fraction': 0.7,
-        'bagging_freq': 5,
-        'verbosity': 0
-    }
 
     gbm = lgb.train(params,
                     lgb_train,
@@ -509,47 +612,14 @@ def train_lgb_with_val(train_x, train_y):
     return gbm
 
 
-def train_lgb(train_x, train_y, num_boost_round=1500):
-
-    # create lgb dataset
+def train_lgb(train_x, train_y, params=params_naive, num_boost_round=1500):
     lgb_train = lgb.Dataset(train_x, train_y)
-
-    params = {
-        'boosting_type': 'gbdt',
-        'objective': 'regression_l1',
-        'metric': {'l1'},
-        'num_leaves': 40,
-        'min_data_in_leaf': 300,
-        'learning_rate': 0.01,
-        'lambda_l2': 0.02,
-        'feature_fraction': 0.8,
-        'bagging_fraction': 0.7,
-        'bagging_freq': 5,
-        'verbosity': 0
-    }
-
-    gbm = lgb.train(params,
-                    lgb_train,
-                    num_boost_round=num_boost_round)
-
+    gbm = lgb.train(params, lgb_train, num_boost_round=num_boost_round)
     return gbm
 
 
-def cv_lgb_final(train_x, train_y, num_boosting_round=1500):
+def cv_lgb_final(train_x, train_y, params=params_naive, num_boosting_round=1500):
     lgb_train = lgb.Dataset(train_x, train_y)
-    params = {
-        'boosting_type': 'gbdt',
-        'objective': 'regression_l1',
-        'metric': {'l1'},
-        'num_leaves': 40,
-        'min_data_in_leaf': 300,
-        'learning_rate': 0.01,
-        'lambda_l2': 0.02,
-        'feature_fraction': 0.8,
-        'bagging_fraction': 0.7,
-        'bagging_freq': 5,
-        'verbosity': 0
-    }
     eval_hist = lgb.cv(params, lgb_train, num_boost_round=num_boosting_round)
     return eval_hist['l1-mean'][-1]
 
@@ -660,10 +730,15 @@ def search_lgb_random(train_x, train_y):
 def search_lgb_grid(train_x, train_y):
     lgb_train = lgb.Dataset(train_x, train_y)
 
-    min_data_in_leaf_list = []
-    learning_rate_list = []
-    num_leaf_list = []
-    lambda_l2_list = []
+    min_data_in_leaf_list = [200, 230, 260]
+    learning_rate_list = [0.005, 0.008, 0.01]
+    num_leaf_list = [35, 40, 45]
+    lambda_l2_list = [0.01, 0.02, 0.03]
+
+    # min_data_in_leaf_list = [200]
+    # learning_rate_list = [0.005]
+    # num_leaf_list = [35]
+    # lambda_l2_list = [0.01]
 
     res = []
     n_trial = len(min_data_in_leaf_list) * len(learning_rate_list) * len(num_leaf_list) * len(lambda_l2_list)
@@ -685,7 +760,7 @@ def search_lgb_grid(train_x, train_y):
                         'learning_rate': learning_rate,
                         'lambda_l2': lambda_l2
                     }
-                    eval_hist = lgb.cv(params, lgb_train, num_boost_round=2000, early_stopping_rounds=10)
+                    eval_hist = lgb.cv(params, lgb_train, num_boost_round=3000, early_stopping_rounds=30)
                     res.append([eval_hist['l1-mean'][-1],
                                 num_leaf,
                                 min_data_in_leaf,
@@ -694,7 +769,7 @@ def search_lgb_grid(train_x, train_y):
                     iter += 1
                     print('finished %d / %d' % (iter, n_trial))
     res_df = pd.DataFrame(res, columns=['score', 'num_leaves', 'min_data_in_leaf', 'learning_rate', 'lambda_l2'])
-    res_df.to_csv('temp_cv_res_grid.csv', index=False)
+    res_df.to_csv('records/temp_cv_res_grid.csv', index=False)
 
 
 def submit_nosea(score, index, ver):
@@ -744,13 +819,15 @@ def feature_engineering(train_x_inp, train_data, test_x_inp, test_data):
         target_data['dollar_taxvalue_structure_land_diff'] = raw_data[orig_name_structrue] - raw_data[orig_name_land]
         target_data['dollar_taxvalue_structure_land_absdiff'] = np.abs(raw_data[orig_name_structrue] - raw_data[orig_name_land])
         target_data['dollar_taxvalue_structure_total_ratio'] = raw_data[orig_name_structrue] / raw_data[orig_name_total]
-        target_data['dollar_taxvalue_structure_land_ratio'] = raw_data[orig_name_structrue] / raw_data[orig_name_land]
-        target_data['dollar_taxvalue_total_structure_ratio'] = raw_data[orig_name_total] / raw_data[orig_name_structrue]
-        target_data['dollar_taxvalue_total_land_ratio'] = raw_data[orig_name_total] / raw_data[orig_name_land]
-        target_data['dollar_taxvalue_land_structure_ratio'] = raw_data[orig_name_land] / raw_data[orig_name_structrue]
+        # target_data['dollar_taxvalue_structure_land_ratio'] = raw_data[orig_name_structrue] / raw_data[orig_name_land]
+        # target_data['dollar_taxvalue_total_structure_ratio'] = raw_data[orig_name_total] / raw_data[orig_name_structrue]
+        # target_data['dollar_taxvalue_total_land_ratio'] = raw_data[orig_name_total] / raw_data[orig_name_land]
+        # target_data['dollar_taxvalue_land_structure_ratio'] = raw_data[orig_name_land] / raw_data[orig_name_structrue]
 
     test_x = test_x_inp.copy()
     train_x = train_x_inp.copy()
+    train_x.drop('finishedsquarefeet12', axis=1, inplace=True)  # this contians exactly same information as calculatedfinishedsquarefeet
+    train_x.drop(nmap_new_to_orig['code_fips'], axis=1, inplace=True)  # this always ranks last
     feature_engineering_inner(test_x, test_data)
     feature_engineering_inner(train_x, train_data)
     convert_cat_col(train_x, test_x, 'num_fullbath_clean')
@@ -770,7 +847,8 @@ def feature_engineering(train_x_inp, train_data, test_x_inp, test_data):
         test_x.loc[marker, used_name] = test_col_nonan.mode()[0]
         convert_cat_col(train_x, test_x, used_name)
 
-    for name in ('code_city', 'code_neighborhood', 'code_zip', 'raw_block', 'block', 'str_zoning_desc', 'code_county_landuse'):
+    #for name in ('code_city', 'code_neighborhood', 'code_zip', 'raw_block', 'block', 'str_zoning_desc', 'code_county_landuse'):
+    for name in ('code_city', 'code_neighborhood', 'code_zip', 'str_zoning_desc', 'code_county_landuse'):
         class3_var_prep(name)
 
     return train_x, test_x
