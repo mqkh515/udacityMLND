@@ -128,7 +128,7 @@ def outlier_y_capfloor(train_x, train_y, thresh):
 def outlier_x_clean(train_x, train_y, test_x, type_train='rm', type_test='na'):
     """2 strategies for x in train: remove, set to NA. (cap / floor is not expected to help for a tree based model).
        2 strategies for test: set to NA, leave as it is. 
-       Note, for each numerical variables, need to consider to do one-side or 2-sided cleaning"""
+       For each numerical variables, need to consider to do one-side or 2-sided cleaning"""
     rm_idx_train = []
 
     def proc_outlier_num(col, q_down, q_up):
@@ -153,6 +153,14 @@ def outlier_x_clean(train_x, train_y, test_x, type_train='rm', type_test='na'):
 
     # latitude
 
+    # num_bathroom_zillow
+    idx_train = train_x['calculatedbathnbr'] > 6
+    rm_idx_train.append(idx_train)
+    train_x.loc[train_x.index[idx_train], 'calculatedbathnbr'] = np.nan
+    if type_test == 'na':
+        idx_test = test_x['calculatedbathnbr'] > 6
+        test_x.loc[test_x.index[idx_test], 'calculatedbathnbr'] = np.nan
+
 
 
 
@@ -165,134 +173,70 @@ def outlier_rm_x(train_x, train_y):
     return train_x, train_y
 
 
-def cat_num_to_str_inner(data, col_name):
+def cat_num_to_str(data, col_name):
     """for numeric-like categorical varible, transform to string, keep nan"""
     if not data[col_name].dtype == 'O':
         data.loc[:, col_name] = data[col_name].apply(lambda x: str(int(x)) if not np.isnan(x) else np.nan)
 
 
-def property_cleaning_base(train_data, test_data):
+def property_cleaning(prop_data):
     """basic feature clearning, for num_ variables, use as categorical. 
        for categorical variables, group small categories"""
 
-    def cat_num_to_str(col_name):
-        """for numeric-like categorical varible, transform to string, keep nan"""
-        cat_num_to_str_inner(train_data, col_name)
-        cat_num_to_str_inner(test_data, col_name)
-
     def mark_flag_col(col_name):
         """mark bool for numerical columns, mark True for val > 0, and False otherwise (include NaN)"""
-        test_data_marks_true = test_data[col_name] >= 0.5
-        test_data.loc[test_data.index[test_data_marks_true], col_name] = 'TRUE'
-        test_data.loc[test_data.index[~test_data_marks_true], col_name] = 'FALSE'
-        train_data_marks_true = train_data[col_name] >= 0.5
-        train_data.loc[train_data.index[train_data_marks_true], col_name] = 'TRUE'
-        train_data.loc[train_data.index[~train_data_marks_true], col_name] = 'FALSE'
+        data_marks_true = prop_data[col_name] >= 0.5
+        prop_data.loc[prop_data.index[data_marks_true], col_name] = 'TRUE'
+        prop_data.loc[prop_data.index[~data_marks_true], col_name] = 'FALSE'
 
     def mark_flag_col_tax_delinquency():
-        test_data_marks_true = test_data['taxdelinquencyflag'] == 'Y'
-        test_data.loc[test_data.index[test_data_marks_true], 'taxdelinquencyflag'] = 'TRUE'
-        test_data.loc[test_data.index[~test_data_marks_true], 'taxdelinquencyflag'] = 'FALSE'
-        train_data_marks_true = train_data['taxdelinquencyflag'] == 'Y'
-        train_data.loc[train_data.index[train_data_marks_true], 'taxdelinquencyflag'] = 'TRUE'
-        train_data.loc[train_data.index[~train_data_marks_true], 'taxdelinquencyflag'] = 'FALSE'
+        test_data_marks_true = prop_data['taxdelinquencyflag'] == 'Y'
+        prop_data.loc[prop_data.index[test_data_marks_true], 'taxdelinquencyflag'] = 'TRUE'
+        prop_data.loc[prop_data.index[~test_data_marks_true], 'taxdelinquencyflag'] = 'FALSE'
 
-    def col_fill_na(data, col, fill):
-        if fill == 'mode':
-            data[col].fillna(data[col].mode().values[0], inplace=True)
-        elif fill == 'mean':
-            data[col].fillna(data[col].mean(), inplace=True)
-        elif fill == '0':
-            data[col].fillna(0, inplace=True)
-        else:
-            print('unknown fill type: %s' % fill)
-
-    def clear_cat_col_group(data, col, groups):
+    def clear_cat_col_group(col, groups):
         """set given groups of a categorical col to na"""
-        in_group_flag = data[col].apply(lambda x: x in groups)
-        data[col].loc[data[col].index[in_group_flag]] = np.nan
+        in_group_flag = prop_data[col].apply(lambda x: x in groups)
+        prop_data.loc[prop_data[col].index[in_group_flag], col] = np.nan
 
-    # special treatment functions
-    def raw_census_info_split():
-        # create new categorical columns 'raw_census', 'raw_block'
-        def raw_census_info_split_inner(data):
-            data['temp'] = data['rawcensustractandblock'].apply(
-                lambda x: str(round(x * 1000000)) if not np.isnan(x) else 'nan')
-            data.loc[:, 'temp'] = data['temp'].astype('O')
-            data['raw_census'] = data['temp'].apply(lambda x: x[4:10] if not x == 'nan' else np.nan)
-            data['raw_block'] = data['temp'].apply(lambda x: x[10:] if not x == 'nan' else np.nan)
-            data.drop('temp', axis=1, inplace=True)
-
-        raw_census_info_split_inner(test_data)
-        raw_census_info_split_inner(train_data)
-
-    def census_info_split():
-        # create new categorical columns 'raw_census', 'raw_block'
-        def census_info_split_inner(data):
-            data['census'] = data['censustractandblock'].apply(lambda x: x[4:10] if not x == 'nan' else np.nan)
-            data['block'] = data['censustractandblock'].apply(lambda x: x[10:] if not x == 'nan' else np.nan)
-
-        test_data['censustractandblock'] = test_data['censustractandblock'].apply(
-            lambda x: str(int(x)) if not np.isnan(x) else 'nan')
-        train_data['censustractandblock'] = train_data['censustractandblock'].apply(
-            lambda x: str(int(x)) if not np.isnan(x) else 'nan')
-        census_info_split_inner(test_data)
-        census_info_split_inner(train_data)
-
-    def nan_impute_fullbathcnt():
-        """nan impute fullbathcnt from bathroomcnt(which is no missing)"""
-
-        def nan_impute_fullbathcnt_inner(data):
-            null_idx = data.index[data['fullbathcnt'].isnull()]
-            fill_val = data['bathroomcnt'][null_idx].copy()
-            fill_val_raw = fill_val.copy()
-            fill_val_raw_floor = fill_val_raw.apply(math.floor)
-            int_idx = np.abs(fill_val_raw.values - fill_val_raw_floor.values) < 1e-12
-            fill_val[int_idx] = np.maximum(fill_val_raw[int_idx] - 1, 0)
-            fill_val[~int_idx] = fill_val_raw_floor[~int_idx]
-            data.loc[null_idx, 'fullbathcnt'] = fill_val
-            return data
-
-        nan_impute_fullbathcnt_inner(test_data)
-        nan_impute_fullbathcnt_inner(train_data)
-
-    def garage_area_cleaning():
-        """clearn garage features, with zero area but sample has non-zero count"""
-
-        def zero_impute_area_garage_inner(data, data_name):
-            nan_idx = data.index[np.logical_and(np.abs(data['garagetotalsqft'] - 0) < 1e-12, data['garagecarcnt'] > 0)]
-            data.loc[nan_idx, 'garagetotalsqft'] = np.nan  # to do better to impute with cnt group mean
-            print('cleaned rows for %s: %d' % data_name, len(nan_idx))
-
-        zero_impute_area_garage_inner(test_data, 'test_data')
-        zero_impute_area_garage_inner(train_data, 'train_data')
+    def col_fill_na(col, fill_type):
+        if fill_type == 'mode':
+            prop_data[col].fillna(prop_data[col].mode().values[0], inplace=True)
+        elif fill_type == 'mean':
+            prop_data[col].fillna(prop_data[col].mean(), inplace=True)
+        elif fill_type == '0':
+            prop_data[col].fillna(0, inplace=True)
+        else:
+            raise Exception('unknown fill_type')
 
     # type_air_conditioning
-    cat_num_to_str('airconditioningtypeid')
-    clear_cat_col_group(test_data, 'airconditioningtypeid', ['12'])
+    merge_idx = prop_data['airconditioningtypeid'].apply(lambda x: x in {5, 13, 11, 9, 3})
+    prop_data.loc[prop_data.index[merge_idx], 'airconditioningtypeid'] = 13
+    cat_num_to_str(prop_data, 'airconditioningtypeid')
+    clear_cat_col_group('airconditioningtypeid', ['12'])
 
     # type_architectural_style
-    cat_num_to_str('architecturalstyletypeid')
-    clear_cat_col_group(test_data, 'architecturalstyletypeid', ['27', '5'])
+    cat_num_to_str(prop_data, 'architecturalstyletypeid')
+    clear_cat_col_group('architecturalstyletypeid', ['27', '5'])
 
     # area_base_finished
 
     # num_bathroom_assessor
-    col_fill_na(test_data, 'bathroomcnt', 'mode')
+    col_fill_na('bathroomcnt', 'mode')
 
     # num_bathroom_zillow
 
     # num_bedroom
-    col_fill_na(test_data, 'bedroomcnt', 'mode')
+    col_fill_na('bedroomcnt', 'mode')
 
     # type_building_framing
-    cat_num_to_str('buildingclasstypeid')
-    clear_cat_col_group(test_data, 'buildingclasstypeid', ['4'])
+    cat_num_to_str(prop_data, 'buildingclasstypeid')
+    clear_cat_col_group('buildingclasstypeid', ['4'])
 
     # rank_building_quality
 
     # type_deck
-    cat_num_to_str('decktypeid')
+    cat_num_to_str(prop_data, 'decktypeid')
 
     # area_firstfloor_zillow
 
@@ -309,31 +253,42 @@ def property_cleaning_base(train_data, test_data):
     # area_living_type_6
 
     # code_ips, no missing in train
-    cat_num_to_str('fips')
-    col_fill_na(test_data, 'fips', 'mode')
-    col_fill_na(train_data, 'fips', 'mode')
+    cat_num_to_str(prop_data, 'fips')
+    col_fill_na('fips', 'mode')
 
     # num_fireplace
     # col_fill_na(test_data, 'fireplacecnt', '0')
 
     # num_fullbath
+    null_idx = prop_data.index[prop_data['fullbathcnt'].isnull()]
+    fill_val = prop_data['bathroomcnt'][null_idx].copy()
+    fill_val_floor = fill_val.apply(math.floor)
+    int_idx = np.abs(fill_val.values - fill_val_floor.values) < 1e-12
+    fill_val[int_idx] = np.maximum(fill_val[int_idx] - 1, 0)
+    fill_val[~int_idx] = fill_val_floor[~int_idx]
+    prop_data.loc[null_idx, 'fullbathcnt'] = fill_val
 
     # num_garage
 
     # area_garage
+    # fill group mean by garagecarcnt for thoes with carcnt > 0 but sqft == 0
+    mark_idx = prop_data.index[np.logical_and(np.abs(prop_data['garagetotalsqft'] - 0) < 1e-12, prop_data['garagecarcnt'] > 0)]
+    sub_df = prop_data.loc[mark_idx, ['garagetotalsqft', 'garagecarcnt']]
+    sub_df = sub_df.join(prop_data['garagetotalsqft'].groupby(prop_data['garagecarcnt']).mean(), on='garagecarcnt', rsuffix='_avg')
+    prop_data.loc[mark_idx, 'garagetotalsqft'] = sub_df['garagetotalsqft_avg']
 
     # flag_spa_zillow
     mark_flag_col('hashottuborspa')
 
     # type_heating_system
-    cat_num_to_str('heatingorsystemtypeid')
-    clear_cat_col_group(test_data, 'heatingorsystemtypeid', ['19', '21'])
+    cat_num_to_str(prop_data, 'heatingorsystemtypeid')
+    clear_cat_col_group('heatingorsystemtypeid', ['19', '21'])
 
     # latitude
-    col_fill_na(test_data, 'latitude', 'mean')
+    col_fill_na('latitude', 'mean')
 
     # longitude
-    col_fill_na(test_data, 'longitude', 'mean')
+    col_fill_na('longitude', 'mean')
 
     # area_lot
 
@@ -341,8 +296,7 @@ def property_cleaning_base(train_data, test_data):
     mark_flag_col('poolcnt')
 
     # area_pool
-    test_data.loc[test_data.index[test_data['poolcnt'] == 'FALSE'], 'poolsizesum'] = 0
-    train_data.loc[train_data.index[train_data['poolcnt'] == 'FALSE'], 'poolsizesum'] = 0
+    prop_data.loc[prop_data.index[prop_data['poolcnt'] == 'FALSE'], 'poolsizesum'] = 0
 
     # pooltypeid10, high missing rate, counter intuitive values. drop it
     mark_flag_col('pooltypeid10')
@@ -350,58 +304,55 @@ def property_cleaning_base(train_data, test_data):
     # pooltypeid2 and pooltypeid7
     mark_flag_col('pooltypeid2')
     mark_flag_col('pooltypeid7')
-
-    def make_pool_type(data):
-        data['type_pool'] = 'None'
-        data.loc[data.index[data['pooltypeid2'] == 'TRUE'], 'type_pool'] = 'TRUE'
-        data.loc[data.index[data['pooltypeid7'] == 'TRUE'], 'type_pool'] = 'FALSE'
-
-    make_pool_type(test_data)
-    make_pool_type(train_data)
+    prop_data['type_pool'] = 'None'
+    prop_data.loc[prop_data.index[prop_data['pooltypeid2'] == 'TRUE'], 'type_pool'] = 'TRUE'
+    prop_data.loc[prop_data.index[prop_data['pooltypeid7'] == 'TRUE'], 'type_pool'] = 'FALSE'
 
     # code_county_landuse
-    cat_num_to_str('propertycountylandusecode')
-    col_fill_na(test_data, 'propertycountylandusecode', 'mode')
-    col_fill_na(train_data, 'propertycountylandusecode', 'mode')
+    cat_num_to_str(prop_data, 'propertycountylandusecode')
+    col_fill_na('propertycountylandusecode', 'mode')
 
     # code_county_landuse
-    cat_num_to_str('propertylandusetypeid')
-    clear_cat_col_group(test_data, 'propertylandusetypeid', ['270'])
-    col_fill_na(test_data, 'propertylandusetypeid', 'mode')
-    col_fill_na(train_data, 'propertylandusetypeid', 'mode')
+    cat_num_to_str(prop_data, 'propertylandusetypeid')
+    clear_cat_col_group('propertylandusetypeid', ['270'])
+    col_fill_na('propertylandusetypeid', 'mode')
 
     # str_zoning_desc
-    cat_num_to_str('propertyzoningdesc')
+    cat_num_to_str(prop_data, 'propertyzoningdesc')
 
     # raw_census_block, raw_census, raw_block.
-    raw_census_info_split()
-    col_fill_na(test_data, 'raw_census', 'mode')
-    col_fill_na(test_data, 'raw_block', 'mode')
+    prop_data['temp'] = prop_data['rawcensustractandblock'].apply(lambda x: str(round(x * 1000000)) if not np.isnan(x) else 'nan')
+    prop_data['raw_census'] = prop_data['temp'].apply(lambda x: x[4:10] if not x == 'nan' else np.nan)
+    prop_data['raw_block'] = prop_data['temp'].apply(lambda x: x[10:] if not x == 'nan' else np.nan)
+    prop_data.drop('temp', axis=1, inplace=True)
+    col_fill_na('raw_census', 'mode')
+    col_fill_na('raw_block', 'mode')
+    prop_data.drop('rawcensustractandblock', axis=1, inplace=True)
 
     # code_city
-    cat_num_to_str('regionidcity')
+    cat_num_to_str(prop_data, 'regionidcity')
 
     # code_county
-    cat_num_to_str('regionidcounty')
+    cat_num_to_str(prop_data, 'regionidcounty')
 
     # code_neighborhood
-    cat_num_to_str( 'regionidneighborhood')
+    cat_num_to_str(prop_data, 'regionidneighborhood')
 
     # code_zip
-    cat_num_to_str('regionidzip')
+    cat_num_to_str(prop_data, 'regionidzip')
 
     # num_room
-    col_fill_na(test_data, 'roomcnt', 'mode')
+    col_fill_na('roomcnt', 'mode')
 
     # type_story
-    cat_num_to_str('storytypeid')
+    cat_num_to_str(prop_data, 'storytypeid')
 
     # num_34_bathroom
-    cat_num_to_str('threequarterbathnbr')
+    cat_num_to_str(prop_data, 'threequarterbathnbr')
 
     # type_construction
-    clear_cat_col_group(test_data, 'typeconstructiontypeid', ['2'])
-    cat_num_to_str('typeconstructiontypeid')
+    clear_cat_col_group('typeconstructiontypeid', ['2'])
+    cat_num_to_str(prop_data, 'typeconstructiontypeid')
 
     # num_unit
 
@@ -412,7 +363,7 @@ def property_cleaning_base(train_data, test_data):
     # year_built
 
     # num_story
-    cat_num_to_str('numberofstories')
+    cat_num_to_str(prop_data, 'numberofstories')
 
     # flag_fireplace
     mark_flag_col('fireplaceflag')
@@ -420,10 +371,10 @@ def property_cleaning_base(train_data, test_data):
     # dollar_taxvalue_structure
 
     # dollar_taxvalue_total
-    col_fill_na(test_data, 'taxvaluedollarcnt', 'mean')
+    col_fill_na('taxvaluedollarcnt', 'mean')
 
     # dollar_taxvalue_land
-    col_fill_na(test_data, 'landtaxvaluedollarcnt', 'mean')
+    col_fill_na('landtaxvaluedollarcnt', 'mean')
 
     # dollar_tax
 
@@ -431,10 +382,19 @@ def property_cleaning_base(train_data, test_data):
     mark_flag_col_tax_delinquency()
 
     # year_tax_due
-    cat_num_to_str('taxdelinquencyyear')
 
     # census_block
-    census_info_split()
+    prop_data['censustractandblock'] = prop_data['censustractandblock'].apply(lambda x: str(int(x)) if not np.isnan(x) else 'nan')
+    prop_data['census'] = prop_data['censustractandblock'].apply(lambda x: x[4:10] if not x == 'nan' else np.nan)
+    prop_data['block'] = prop_data['censustractandblock'].apply(lambda x: x[10:] if not x == 'nan' else np.nan)
+    prop_data.drop('censustractandblock', axis=1, inplace=True)
+    col_fill_na('census', 'mode')
+    col_fill_na('block', 'mode')
+
+    # name columns
+    feature_info = pd.read_csv('data/feature_info.csv', index_col='new_name')
+    nmap_orig_to_new = dict(zip(feature_info['orig_name'].values, feature_info.index.values))
+    prop_data = prop_data.rename(columns=nmap_orig_to_new)
 
 
 def load_data_raw():
@@ -442,6 +402,7 @@ def load_data_raw():
     prop_data = pd.read_csv('data/properties_2016.csv', header=0)
     error_data = pd.read_csv('data/train_2016_v2.csv', header=0)
     error_data['sale_month'] = error_data['transactiondate'].apply(lambda x: x.split('-')[1])  # get error data transaction date to month
+    property_cleaning(prop_data)
 
     train_data = error_data.merge(prop_data, how='left', on='parcelid')
     # train_data.to_csv('data/train_data_merge.csv', index=False)
@@ -450,7 +411,6 @@ def load_data_raw():
     submission['parcelid'] = submission['ParcelId']
     submission.drop('ParcelId', axis=1, inplace=True)
     test_data = submission.merge(prop_data, how='left', on='parcelid')
-    property_cleaning_base(train_data, test_data)
 
     return train_data, test_data
 
@@ -573,7 +533,37 @@ def load_data_naive_lgb_final(train_data, test_data):
                                                    'year_tax_due']]
     if len(keep_feature) != len(set(keep_feature)):
         raise Exception('duplicated feature')
-    test_x = test_data[keep_feature + ['parcelid']]
+    test_x = test_data[keep_feature]
+    train_x = train_data[keep_feature]
+    train_y = train_data['logerror']
+
+    def float_type_cast(data):
+        for col in data.columns:
+            if data[col].dtype == np.float64:
+                data.loc[:, col] = data[col].astype(np.float32)
+
+    # type clearning
+    float_type_cast(test_x)
+    float_type_cast(train_x)
+    for col in set(train_x.columns).intersection(set(test_x.columns)):
+        if feature_info.loc[col, 'type'] == 'cat':
+            convert_cat_col(train_x, test_x, col)
+
+    return test_x, train_x, train_y
+
+
+def load_data_naive_lgb_submit(train_data, test_data):
+    """use subset of good features to see how it performance"""
+    keep_feature = list(feature_info.index[feature_info['class'].apply(lambda x: True if x in {1, 2} else False)].values)
+    keep_feature += [nmap_new_to_orig[n] for n in ['area_living_type_15',
+                                                   'area_firstfloor_zillow',
+                                                   'area_yard_patio',
+                                                   'year_tax_due']]
+    if len(keep_feature) != len(set(keep_feature)):
+        raise Exception('duplicated feature')
+    for f in ['code_fips', 'num_bathroom_assessor', 'area_living_type_12']:
+        keep_feature.remove(f)
+    test_x = test_data[keep_feature]
     train_x = train_data[keep_feature]
     train_y = train_data['logerror']
 
@@ -787,7 +777,8 @@ def pred_nosea(model, test_x):
     submit_nosea(pred_score, test_data['parcelid'], 2)
 
 
-NUM_VARS = ('area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
+NUM_VARS = ('area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
+            'area_garage', 'area_pool')
 
 
 def new_feature_base(train_x_inp, train_data, test_x_inp, test_data):
