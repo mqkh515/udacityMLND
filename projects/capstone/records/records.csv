@@ -5,3 +5,4 @@ naive_lgb_feature_downsize,0.067191,,
 naive_lgb_with_class4,0.0671432,0.0644639,
 naive_lgb_final,0.067142,0.0644925,20170917_v4
 feature_engineering1,0.0671139,0.064531,
+naive_lgb_full_raw_features,0.067120744,,
