@@ -30,7 +30,7 @@ params_naive = {
     'bagging_fraction': 0.7,
     'bagging_freq': 5,
     'verbosity': 0,
-    'num_boosting_rounds': 1300
+    'num_boosting_rounds': 1500
 }
 
 params_fe = {
@@ -394,24 +394,82 @@ def property_cleaning(prop_data):
     prop_data.rename(columns=nmap_orig_to_new, inplace=True)
 
 
+# groups to be set to na or grouped to another
+TYPE_CAR_CLEAN_MAP = {
+    'num_bathroom_zillow': lambda x: x > 6,
+    'num_bedroom': lambda x: x >= 7,
+    'rank_building_quality': lambda x: x in (6, 8, 11, 12),
+    'num_fullbath': lambda x: x >= 7,
+    'num_garage': lambda x: x >= 5,
+    'type_heating_system': lambda x: x in ('13', '20', '18', '11', '1', '14', '12', '10'),
+    'type_landuse': lambda x: x in ('260', '263', '264', '267', '275', '31', '47'),
+    'num_room': lambda x: x > 11 or x < 3,
+    'num_34_bathroom': lambda x: x >= 2,
+    'num_unit': lambda x: x >= 5,
+    'num_story': lambda x: x >= 4
+}
 
-def create_type_var(data, col, type_as_na=False):
+
+def create_type_var(data, col):
     """create type_var from given col.
         1, group or mark small categories as NA.
         2, also do this for num_ vars, and transform them to cat.
         3, create a new col groupby_col in data"""
 
+    def clean_type_var(to_val):
+        new_col_data = data[col].copy()
+        new_col_data[new_col_data.index[new_col_data.apply(TYPE_CAR_CLEAN_MAP[col])]] = to_val
+        data[new_col_name] = new_col_data
+        cat_num_to_str(data, new_col_name)
+
     new_col_name = 'groupby_' + col
 
-    if col == 'type_air_conditioning':
+    if col in ('type_air_conditioning', 'flag_pool', 'flag_tax_delinquency',
+               'str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
+               'raw_block', 'raw_census', 'block', 'census'):
         # already grouped in basic cleaning
         data[new_col_name] = data[col]
 
-    if col == 'num_bathroom_assessor':
-        new_col_data = data[col].copy()
-        new_col_data[new_col_data > 6] = 6
-        data[new_col_name] = new_col_data
-        cat_num_to_str(data, new_col_name)
+    if col == 'num_bathroom_zillow':
+        clean_type_var(6)
+
+    if col == 'num_bedroom':
+        clean_type_var(7)
+
+    if col == 'rank_building_quality':
+        clean_type_var(np.nan)
+
+    if col == 'code_fips':
+        data[new_col_name] = data[col].copy()
+
+    if col == 'num_fireplace':
+        clean_type_var(3)
+
+    if col == 'num_fullbath':
+        clean_type_var(6)
+
+    if col == 'num_garage':
+        clean_type_var(4)
+
+    if col == 'type_heating_system':
+        clean_type_var(np.nan)
+
+    if col == 'type_landuse':
+        clean_type_var(np.nan)
+
+    if col == 'num_room':
+        clean_type_var(np.nan)
+
+    if col == 'num_34_bathroom':
+        clean_type_var(np.nan)
+
+    if col == 'num_unit':
+        clean_type_var(np.nan)
+
+    if col == 'num_story':
+        clean_type_var(np.nan)
+
+    return new_col_name
 
 
 def load_data_raw():
@@ -429,6 +487,8 @@ def load_data_raw():
     submission.drop('ParcelId', axis=1, inplace=True)
     test_data = submission.merge(prop_data, how='left', on='parcelid')
 
+    clean_class3_var(train_data, test_data)
+
     return train_data, test_data
 
 
@@ -442,7 +502,7 @@ def clean_class3_var(train_data, test_data):
         train_cats = train_col_nonan.unique()
         test_cats = test_col_nonan.unique()
         test_only_cats = set(test_cats) - set(train_cats)
-        marker = test_data[nmap_new_to_orig[name]].apply(lambda x: x in test_only_cats)
+        marker = test_data[name].apply(lambda x: x in test_only_cats)
         test_data.loc[marker, name] = test_col_nonan.mode()[0]
 
     for name in ('code_city', 'code_neighborhood', 'code_zip', 'raw_block', 'block', 'str_zoning_desc', 'code_county_landuse'):
@@ -480,6 +540,8 @@ def load_data_naive_lgb_v2(train_data, test_data):
     keep_feature = list(feature_info.index.values)
     for col in ['census_block', 'raw_census_block', 'year_assess']:
         keep_feature.remove(col)
+    # for col in ['num_bathroom_assessor', 'code_county', 'area_living_type_12', 'area_firstfloor_assessor']:
+    #     keep_feature.remove(col)
     test_x = test_data[keep_feature]
     train_x = train_data[keep_feature]
     train_y = train_data['logerror']
@@ -672,7 +734,7 @@ def cv_lgb_final(train_x, train_y, params_inp=params_naive):
     return eval_hist['l1-mean'][-1]
 
 
-def feature_importance(gbm, label=None):
+def feature_importance(gbm, label=None, print_to_scr=True):
     """only applicable for niave gbm"""
     features = np.array(gbm.feature_name())
     n_features = features.shape[0]
@@ -705,6 +767,7 @@ def feature_importance(gbm, label=None):
     df_display = pd.DataFrame()
     df_display['features_avg'] = features_sorted
     df_display['avg_rank'] = rank_sorted
+    df_display['class_avg'] = [feature_info.loc[f, 'class'] if f in feature_info.index else 'new' for f in features_sorted]
     df_display['split_rank_avg'] = rank_split[rank_sort_idx]
     df_display['gain_rank_avg'] = rank_gain[rank_sort_idx]
     df_display['feature_split'] = features_split_sort
@@ -714,11 +777,13 @@ def feature_importance(gbm, label=None):
     df_display['class_gain'] = features_class_gain
     df_display['gain'] = importance_gain_sort
 
-    df_display = df_display[['features_avg', 'avg_rank', 'split_rank_avg', 'gain_rank_avg',
+    df_display = df_display[['features_avg', 'class_avg', 'avg_rank', 'split_rank_avg', 'gain_rank_avg',
                              'feature_split', 'class_split', 'split', 'feature_gain', 'class_gain', 'gain']]
     if label:
         df_display.to_csv('records/feature_importance_%s.csv' % label, index=False)
-    print(df_display)
+    if print_to_scr:
+        print(df_display)
+    return features_sorted
 
 
 def feature_importance_rank(gbm, col_inp, col_ref=None):
@@ -905,11 +970,17 @@ def pred_nosea(model, test_x):
     submit_nosea(pred_score, test_data['parcelid'], 2)
 
 
-NUM_VARS = ('area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
-            'area_garage', 'area_pool')
+NUM_VARS = ['area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
+            'area_garage', 'area_pool']
+
+CAT_VARS = ['type_air_conditioning', 'flag_pool', 'flag_tax_delinquency',
+            'str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
+            'raw_block', 'raw_census', 'block', 'census',
+            'num_bathroom_zillow', 'num_bedroom', 'rank_building_quality', 'code_fips', 'num_fireplace', 'num_fullbath',
+            'num_garage', 'type_heating_system', 'type_landuse', 'num_room', 'num_34_bathroom', 'num_unit', 'num_story']
 
 
-def new_feature_base(train_x_inp, test_x_inp):
+def new_feature_base_all(train_x_inp, test_x_inp):
 
     areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_finished_calc', 'area_living_type_15')
     vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
@@ -940,88 +1011,109 @@ def new_feature_base(train_x_inp, test_x_inp):
     return train_x, test_x
 
 
-# def group_feature_gen(data, cat_var):
-#     """generate group mean / diff_mean / ratio_mean / rank features for all numerical variables"""
-#     cat_var_orig = nmap_new_to_orig[cat_var]
-#     out_data = pd.DataFrame()  # return new feature as a independent DataFrame
-#     out_data[cat_var] = data
-#     # count
-#
-#     rname_orig = nmap_new_to_orig[rname]
-#     data_out = data.copy()
-#     data_out['parcelid'] = raw_data['parcelid']
-#     # region parcel count
-#     data_region = pd.DataFrame()
-#     data_region['parcelid'] = raw_data['parcelid']
-#     data_region[rname] = raw_data[rname_orig]
-#     data_region = data_region.join(data_region.groupby(rname)['parcelid'].count(), on=rname, rsuffix='_%s_count' % rname)
-#     set_na_idx = data_region['parcelid_%s_count' % rname] <= data_region['parcelid_%s_count' % rname].quantile(0.01)
-#     # for v in ('area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_total', 'dollar_taxvalue_land', 'dollar_taxvalue_structure'):
-#     for v in ('area_lot',):
-#         # region avg
-#         data_region[v] = raw_data[nmap_new_to_orig[v]]
-#         data_region = data_region.join(data_region.groupby(rname)[v].mean(), on=rname, rsuffix='_%s_avg' % rname)
-#         # neutral
-#         data_region[v + '_%s_neu' % rname] = data_region[v] - data_region[v + '_%s_avg' % rname]
-#         # ratio
-#         data_region[v + '_%s_ratio' % rname] = data_region[v] / data_region[v + '_%s_avg' % rname]
-#         data_region.loc[data_region.index[data_region[v + '_%s_avg' % rname] < 1], v + '_%s_ratio' % rname] = np.nan
-#         # rank
-#         data_region = data_region.join(data_region.groupby(rname)[v].rank(), on=rname, rsuffix='_%s_rank_raw' % rname)
-#         data_region[v + '_%s_rank' % rname] = data_region[v + '_%s_rank_raw' % rname] / data_region['parcelid_%s_count' % rname]
-#         data_region.drop([v + '_%s_rank_raw' % rname, v], axis=1, inplace=True)
-#     cols_ex_id = list(data_region.columns.values)
-#     cols_ex_id.remove('parcelid')
-#     cols_ex_id.remove(rname)
-#     # set small region to nan
-#     data_region.loc[set_na_idx, cols_ex_id] = np.nan
-#     data_out = data_out.merge(data_region, on='parcelid', how='left')
-#     data_out.drop(['parcelid', rname], axis=1, inplace=True)
-#     return data_out, cols_ex_id
+def new_feature_base_selected(train_x_inp, test_x_inp):
+
+    areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_finished_calc', 'area_living_type_15')
+    vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
+
+    created_var_names = []
+
+    def feature_engineering_inner(target_data, raw_data, run_type):
+        """target_data are those used for model input, it is output from naive lgb selection, thus does not contain all features"""
+
+        # dollar_taxvalue variables
+        target_data['dollar_taxvalue_structure_land_diff'] = raw_data['dollar_taxvalue_structure'] - raw_data['dollar_taxvalue_land']
+        target_data['dollar_taxvalue_structure_land_absdiff'] = np.abs(raw_data['dollar_taxvalue_structure'] - raw_data['dollar_taxvalue_land'])
+        target_data['dollar_taxvalue_structure_total_ratio'] = raw_data['dollar_taxvalue_structure'] / raw_data['dollar_taxvalue_total']
+        target_data['dollar_taxvalue_total_structure_ratio'] = raw_data['dollar_taxvalue_total'] / raw_data['dollar_taxvalue_structure']
+
+        if run_type == 'test':
+            created_var_names = ['dollar_taxvalue_structure_land_diff', 'dollar_taxvalue_structure_land_absdiff',
+                                 'dollar_taxvalue_structure_total_ratio', 'dollar_taxvalue_total_structure_ratio']
+
+        # per_square variables
+        for v in vars:
+            for a in areas:
+                if (v == 'dollar_tax' and a in ('area_living_type_15', 'area_garage')) or \
+                        (v == 'dollar_taxvalue_total' and a == 'area_living_type_15') or \
+                        (a == 'area_pool'):
+                    continue
+                col_name = v + '_per_' + a
+                if run_type == 'test':
+                    created_var_names.append(col_name)
+                target_data[col_name] = raw_data[v] / raw_data[a]
+                target_data.loc[np.abs(raw_data[a]) < 1e-5, col_name] = np.nan
+
+    test_x = test_x_inp.copy()
+    train_x = train_x_inp.copy()
+    feature_engineering_inner(test_x, test_x_inp, 'test')
+    feature_engineering_inner(train_x, train_x_inp, 'train')
+
+    return train_x, test_x, created_var_names
 
 
-def filter_features_gbm(gbm, keep_num=60):
-    features = np.array(gbm.feature_name())
-    n_features = features.shape[0]
+def group_feature_gen(data_train, raw_data_train, raw_data_test, cat_var, num_vars):
+    """generate diff_mean & ratio_mean across cat_var groups for all numerical variables.
+       input raw_data should be output from new_feature_base_selected(), i.e containing all original information of cat & numerical vars.
+       input data should be the output from last feature engineering iteration.
+       data and raw_data are expected to be of same length.
+       Also create the feature for test data and save to local, so that it is easier to be used in the future"""
+    new_cat_var = create_type_var(raw_data_train, cat_var)
+    _ = create_type_var(raw_data_test, cat_var)
 
-    importance_split = np.array(gbm.feature_importance('split'))
-    rank_split = np.argsort(np.argsort(importance_split))
-    rank_split = n_features - rank_split
-    importance_gain = np.array(gbm.feature_importance('gain'))
-    rank_gain = np.argsort(np.argsort(importance_gain))
-    rank_gain = n_features - rank_gain
-    avg_rank = (rank_gain + rank_split) / 2
-    rank_sort_idx = np.argsort(avg_rank)
-    rank_sorted = avg_rank[rank_sort_idx]
-    features_sorted = features[rank_sort_idx]
+    # region parcel count
+    first_num_var = num_vars[0]
+    raw_data_train = raw_data_train.join(raw_data_train[first_num_var].groupby(raw_data_train[new_cat_var]).count(), on=new_cat_var, rsuffix='_%s_count' % new_cat_var)
+    raw_data_test = raw_data_test.join(raw_data_test[first_num_var].groupby(raw_data_test[new_cat_var]).count(), on=new_cat_var, rsuffix='_%s_count' % new_cat_var)
+    count_col = first_num_var + '_%s_count' % new_cat_var
+    count_thresh = raw_data_test[count_col].quantile(0.001)
+    set_na_idx_train = raw_data_train[count_col] <= count_thresh
+    set_na_idx_test = raw_data_test[count_col] <= count_thresh
+    raw_data_train.drop(count_col, axis=1, inplace=True)
+    raw_data_test.drop(count_col, axis=1, inplace=True)
+    for num_var in num_vars:
+        # group avg
+        raw_data_train = raw_data_train.join(raw_data_train[num_var].groupby(new_cat_var).mean(), on=new_cat_var, rsuffix='_%s_avg' % new_cat_var)
+        raw_data_test = raw_data_test.join(raw_data_test[num_var].groupby(new_cat_var).mean(), on=new_cat_var, rsuffix ='_%s_avg' % new_cat_var)
+        # neutral
+        data_train[num_var + '_%s_neu' % new_cat_var] = raw_data_train[num_var] - raw_data_train[num_var + '_%s_avg' % new_cat_var]
 
-    # verbose:
-    if 1:
-        debug_df = pd.DataFrame()
-        debug_df['features'] = features_sorted
-        debug_df['avg_rank'] = rank_sorted
-        debug_df['split_score'] = importance_split[rank_sort_idx]
-        debug_df['split_rank'] = rank_split[rank_sort_idx]
-        debug_df['gain_score'] = importance_gain[rank_sort_idx]
-        debug_df['gain_rank'] = rank_gain[rank_sort_idx]
-        print('sorted feature importance')
-        print(debug_df)
-        orig_df = pd.DataFrame()
-        orig_df['features'] = features
-        orig_df['split_score'] = importance_split
-        orig_df['gain_score'] = importance_gain
-        print('original feature importrance')
-        print(orig_df)
+        neu_col_test = raw_data_test[num_var] - raw_data_test[num_var + '_%s_avg' % new_cat_var]
+        neu_col_test[set_na_idx_test] = np.nan
+        neu_col_test.to_csv('fe/' + num_var + '_%s_neu' % new_cat_var + '.csv')
+        # ratio
+        data_train[num_var + '_%s_ratio' % new_cat_var] = raw_data_train[num_var] / raw_data_train[num_var + '_%s_avg' % new_cat_var]
+        data_train.loc[data_train.index[raw_data_train[num_var + '_%s_avg' % new_cat_var] < 1e-5], num_var + '_%s_ratio' % new_cat_var] = np.nan
 
-    return features_sorted[:keep_num] if features_sorted.shape[0] >= keep_num else features_sorted
+        ratio_col_test = raw_data_test[num_var] / raw_data_test[num_var + '_%s_avg' % new_cat_var]
+        ratio_col_test[raw_data_test[num_var + '_%s_avg' % new_cat_var] < 1e-5] = np.nan
+        ratio_col_test[set_na_idx_test] = np.nan
+        ratio_col_test.to_csv('fe/' + num_var + '_%s_ratio' % new_cat_var + '.csv')
+
+        raw_data_train.drop(num_var + '_%s_avg' % new_cat_var, axis=1, inplace=True)
+        raw_data_test.drop(num_var + '_%s_avg' % new_cat_var, axis=1, inplace=True)
+        # set small groups to nan
+        data_train.loc[set_na_idx_train, [num_var + '_%s_neu' % new_cat_var, num_var + '_%s_ratio' % new_cat_var]] = np.nan
+
+    raw_data_train.drop(new_cat_var, axis=1, inplace=True)
+    raw_data_test.drop(new_cat_var, axis=1, inplace=True)
 
 
 def feature_engineering(train_x_inp, test_x_inp, train_y):
+    keep_num = 80
+    train_x_fe, test_x_fe, new_num_vars = new_feature_base_selected(train_x_inp, test_x_inp)
+    train_x_fe_base = train_x_fe.copy()
 
-    train_x, test_x = new_feature_base(train_x_inp, test_x_inp)
-    gbm = train_lgb(train_x, train_y)
-    features_next = filter_features_gbm(gbm)
-    return train_x, test_x, features_next
+    num_vars = NUM_VARS + new_num_vars
+
+    for cat_var in CAT_VARS:
+        group_feature_gen(train_x_fe, train_x_fe_base, test_x_fe, cat_var, num_vars)
+        gbm = train_lgb(train_x_fe, train_y)
+        features_sorted = feature_importance(gbm, 'after_%s' % cat_var, False)
+        features_selected = features_sorted[:keep_num] if features_sorted.shape[0] >= keep_num else features_sorted
+        train_x_fe = train_x_fe[features_selected]
+
+    return train_x_fe, test_x_fe
 
 # CANNOT use parcelid to join for train data, it is not unique
 
