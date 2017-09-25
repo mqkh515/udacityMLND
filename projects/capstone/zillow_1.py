@@ -2,11 +2,15 @@ import numpy as np
 import pandas as pd
 import math
 import gc
+import os
 from time import time
 import datetime
 import matplotlib.pyplot as plt
 import lightgbm as lgb
+import xgboost as xgb
 from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+
 # from bayes_opt import BayesianOptimization
 pd.set_option('display.max_columns', 20)
 pd.set_option('display.width', 1000)
@@ -48,6 +52,7 @@ params_fe = {
     'num_boosting_rounds': 2000
 }
 
+
 def cv_mean_model(train_y):
     np.random.seed(42)
     y = np.array(train_y)
@@ -71,7 +76,7 @@ def cv_mean_model(train_y):
     return np.mean(evals)
 
 
-def cv_meta_model(x, y, train_model_func, outlier_thresh_y=0.001, outlier_handling=None, seanality_handling=None):
+def cv_meta_model(x, y, test_data, model_func, outlier_thresh=0.001, outlier_handling=None):
     """cv for applyfunc, transformation of inp data or out data in addition to applying model, cannot do with built-in cv.
        for now, pre_applyfunc is designed for row outlier cleaning.
        post_applyfunc is for seasonality handling.
@@ -88,8 +93,8 @@ def cv_meta_model(x, y, train_model_func, outlier_thresh_y=0.001, outlier_handli
             train_x_cv, train_y_cv = x.iloc[idx[fold_size:], :].copy(), y.iloc[idx[fold_size:]].copy()
             test_x_cv, test_y_cv = x.iloc[idx[:fold_size], :].copy(), y.iloc[idx[:fold_size]].copy()
         elif n == n_fold - 1:
-            train_x_cv, train_y_cv = x.iloc[idx[-fold_size:], :].copy(), y.iloc[idx[-fold_size:]].copy()
-            test_x_cv, test_y_cv = x.iloc[idx[:-fold_size], :].copy(), y.iloc[idx[:-fold_size]].copy()
+            train_x_cv, train_y_cv = x.iloc[idx[:-fold_size], :].copy(), y.iloc[idx[:-fold_size]].copy()
+            test_x_cv, test_y_cv = x.iloc[idx[-fold_size:], :].copy(), y.iloc[idx[-fold_size:]].copy()
         else:
             train_x_cv = pd.concat([x.iloc[idx[: fold_size * n], :].copy(), x.iloc[idx[fold_size * (n + 1):], :].copy()])
             train_y_cv = pd.concat([y.iloc[idx[: fold_size * n]].copy(), y.iloc[idx[fold_size * (n + 1):]].copy()])
@@ -97,14 +102,66 @@ def cv_meta_model(x, y, train_model_func, outlier_thresh_y=0.001, outlier_handli
             test_y_cv = y.iloc[idx[fold_size * n: fold_size * (n + 1)]].copy()
 
         if outlier_handling:
-            train_x_cv, train_y_cv = outlier_handling(train_x_cv, train_y_cv, outlier_thresh_y)
-        model = train_model_func(train_x_cv, train_y_cv)
-        pred_y_cv = model.predict(test_x_cv)
+            train_x_cv, train_y_cv = outlier_handling(train_x_cv, train_y_cv, test_data, outlier_thresh)
+        pred_y_cv = model_func(train_x_cv, train_y_cv, test_x_cv)
         evals[n] = np.mean(np.abs(pred_y_cv - test_y_cv))
     return np.mean(evals)
 
 
-def outlier_y_rm(train_x, train_y, thresh):
+def lgb_2step(train_x, train_y, test_x):
+    """2-step training and prediction, first make use of linear relationship between year_built and logerro, then use features to predict rest error"""
+    x = train_x['year_built'].fillna(1955)
+    y = train_y.astype(np.float32)
+    x = x.astype(np.float32)
+    x = x.reshape(x.shape[0], 1)
+    lr = LinearRegression()
+    lr.fit(x, y)
+
+    params = {
+        'boosting_type': 'gbdt',
+        'objective': 'regression_l1',
+        'metric': {'l1'},
+        'num_leaves': 30,
+        'min_data_in_leaf': 250,
+        'learning_rate': 0.01,
+        'lambda_l2': 0.02,
+        'feature_fraction': 0.8,
+        'bagging_fraction': 0.7,
+        'bagging_freq': 5,
+        'verbosity': 0,
+        'num_boosting_rounds': 1500
+    }
+
+    error2 = y - lr.predict(x)
+    gbm = train_lgb(train_x, error2, params)
+
+    test_x_yearbuilt = test_x['year_built'].fillna(1955).reshape(test_x.shape[0], 1)
+    test_y = gbm.predict(test_x) + lr.predict(test_x_yearbuilt)
+    return test_y
+
+
+def lgb_raw(train_x, train_y, test_x):
+
+    params = {
+        'boosting_type': 'gbdt',
+        'objective': 'regression_l1',
+        'metric': {'l1'},
+        'num_leaves': 30,
+        'min_data_in_leaf': 250,
+        'learning_rate': 0.01,
+        'lambda_l2': 0.02,
+        'feature_fraction': 0.8,
+        'bagging_fraction': 0.7,
+        'bagging_freq': 5,
+        'verbosity': 0,
+        'num_boosting_rounds': 1500
+    }
+
+    gbm = train_lgb(train_x, train_y, params)
+    return gbm.predict(test_x)
+
+
+def outlier_y_rm(train_x, train_y, test_data, thresh):
     quantile_cut = thresh
     down_thresh, up_thresh = train_y.quantile([quantile_cut, 1 - quantile_cut])
     pos_ex_y_idx = train_y > up_thresh
@@ -116,7 +173,7 @@ def outlier_y_rm(train_x, train_y, thresh):
     return train_x, train_y
 
 
-def outlier_y_capfloor(train_x, train_y, thresh):
+def outlier_y_capfloor(train_x, train_y, test_data, thresh):
     quantile_cut = thresh
     down_thresh, up_thresh = train_y.quantile([quantile_cut, 1 - quantile_cut])
     pos_ex_y_idx = train_y > up_thresh
@@ -127,46 +184,68 @@ def outlier_y_capfloor(train_x, train_y, thresh):
     return train_x, train_y
 
 
-def outlier_x_clean(train_x, train_y, test_x, type_train='rm', type_test='na'):
+def outlier_x_clean(train_x_inp, train_y_inp, test_x, type_train='rm', type_test=None, thresh=0.001):
     """2 strategies for x in train: remove, set to NA. (cap / floor is not expected to help for a tree based model).
        2 strategies for test: set to NA, leave as it is. 
        For each numerical variables, need to consider to do one-side or 2-sided cleaning"""
-    rm_idx_train = []
+    rm_idx_train = {}
+    train_x = train_x_inp.copy()
+    train_y = train_y_inp.copy()
 
     def proc_outlier_num(col, q_down, q_up):
         """use -1 if one side of data is not trimmed"""
-        name = nmap_new_to_orig[col] if col in nmap_new_to_orig else col
-        thresh_up = test_x[name].quantile(q_up) if q_up > 0 else np.inf  # Series.quantile has already considered NA
-        thresh_down = test_x[name].quantile(q_down) if q_down > 0 else -np.inf
+        thresh_up = test_x[col].quantile(q_up) if q_up > 0 else np.inf  # Series.quantile has already considered NA
+        thresh_down = test_x[col].quantile(q_down) if q_down > 0 else -np.inf
 
-        pos_idx_train = train_x[name] >= thresh_up
-        neg_idx_train = train_x[name] <= thresh_down
-        pos_idx_test = test_x[name] >= thresh_up
-        neg_idx_test = test_x[name] <= thresh_down
+        pos_idx_train = train_x[col] > thresh_up
+        neg_idx_train = train_x[col] < thresh_down
+        pos_idx_test = test_x[col] > thresh_up
+        neg_idx_test = test_x[col] < thresh_down
         idx_train = np.logical_or(pos_idx_train, neg_idx_train)
         idx_test = np.logical_or(pos_idx_test, neg_idx_test)
-        rm_idx_train.append(idx_train)
-        train_x.loc[idx_train, name] = np.nan
+        rm_idx_train[col] = idx_train
+        train_x.loc[idx_train, col] = np.nan
         if type_test == 'na':
-            test_x.loc[idx_test, name] = np.nan
+            test_x.loc[idx_test, col] = np.nan
 
-    # year built
-    proc_outlier_num('year_built', 0.001, -1)
+    def proc_outlier_cat(col):
+        idx_train = train_x[col].apply(TYPE_CAR_CLEAN_MAP[col])
+        idx_test = test_x[col].apply(TYPE_CAR_CLEAN_MAP[col])
+        rm_idx_train[col] = idx_train
+        train_x.loc[idx_train, col] = np.nan
+        if type_test == 'na':
+            test_x.loc[idx_test, col] = np.nan
 
-    # latitude
+    # year built use left side only
+    proc_outlier_num('year_built', thresh, -1)
 
-    # num_bathroom_zillow
-    idx_train = train_x['calculatedbathnbr'] > 6
-    rm_idx_train.append(idx_train)
-    train_x.loc[train_x.index[idx_train], 'calculatedbathnbr'] = np.nan
-    if type_test == 'na':
-        idx_test = test_x['calculatedbathnbr'] > 6
-        test_x.loc[test_x.index[idx_test], 'calculatedbathnbr'] = np.nan
+    # all others use two-sided
+    for num_var in ('area_lot', 'dollar_tax', 'area_living_type_12', 'dollar_taxvalue_structure',
+                    'area_living_finished_calc', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
+                    'area_garage', 'area_living_type_15', 'area_pool'):
+        proc_outlier_num(num_var, thresh, 1-thresh)
 
+    for cat_var in TYPE_CAR_CLEAN_MAP:
+        if cat_var in ('type_heating_system', 'type_landuse'):
+            # type variables have already been coded to int in load_data_naive_lgb
+            continue
+        proc_outlier_cat(cat_var)
 
-def outlier_rm_x(train_x, train_y):
-    rm_idx = []
+    if type_train == 'rm':
+        rm_idx = np.logical_or.reduce(list(rm_idx_train.values()))
+        print('n_rows to remove: %d' % np.sum(rm_idx))
+        train_x = train_x.loc[train_x.index[~rm_idx], :]
+        train_y = train_y[~rm_idx]
+
     return train_x, train_y
+
+
+def outlier_rm_x(train_x, train_y, test_data, thresh):
+    return outlier_x_clean(train_x, train_y, test_data, thresh=thresh)
+
+
+def outlier_na_x(train_x, train_y, test_data, thresh):
+    return outlier_x_clean(train_x, train_y, test_data, type_train='na', type_test='na', thresh=thresh)
 
 
 def cat_num_to_str(data, col_name):
@@ -403,7 +482,7 @@ TYPE_CAR_CLEAN_MAP = {
     'num_garage': lambda x: x >= 5,
     'type_heating_system': lambda x: x in ('13', '20', '18', '11', '1', '14', '12', '10'),
     'type_landuse': lambda x: x in ('260', '263', '264', '267', '275', '31', '47'),
-    'num_room': lambda x: x > 11 or x < 3,
+    'num_room': lambda x: x > 11 or (x < 3 and x != 0),
     'num_34_bathroom': lambda x: x >= 2,
     'num_unit': lambda x: x >= 5,
     'num_story': lambda x: x >= 4
@@ -726,6 +805,10 @@ def train_lgb(train_x, train_y, params_inp=params_naive):
     return gbm
 
 
+def train_xgb(train_x, train_y):
+    pass
+
+
 def cv_lgb_final(train_x, train_y, params_inp=params_naive):
     lgb_train = lgb.Dataset(train_x, train_y)
     params = params_inp.copy()
@@ -964,20 +1047,42 @@ def submit_nosea(score, index, ver):
 
 def pred_nosea(model, test_x):
     train_data, test_data = load_data_raw()
-    test_x, train_x, train_y = load_data_naive_lgb(train_data, test_data)
+    test_x, train_x, train_y = load_data_naive_lgb_v2(train_data, test_data)
+
     trained_gbm = train_lgb(train_x, train_y)
     pred_score = trained_gbm.predict(test_x)
     submit_nosea(pred_score, test_data['parcelid'], 2)
 
 
+def pred_nosea_2step():
+    train_data, test_data = load_data_raw()
+    test_x, train_x, train_y = load_data_naive_lgb_v2(train_data, test_data)
+
+    x = train_x['year_built'].fillna(1955)
+    y = train_y.astype(np.float32)
+    x = x.astype(np.float32)
+    x = x.reshape(x.shape[0], 1)
+    lr = LinearRegression()
+    lr.fit(x, y)
+
+    error2 = y - lr.predict(x)
+    gbm = train_lgb(train_x, error2)
+
+    test_year_built = test_x['year_built'].fillna(1955).reshape(test_x.shape[0], 1)
+    pred_score = gbm.predict(test_x) + lr.predict(test_year_built)
+    submit_nosea(pred_score, test_data['parcelid'], 1)
+
+
 NUM_VARS = ['area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
             'area_garage', 'area_pool']
 
-CAT_VARS = ['type_air_conditioning', 'flag_pool', 'flag_tax_delinquency',
-            'str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
-            'raw_block', 'raw_census', 'block', 'census',
-            'num_bathroom_zillow', 'num_bedroom', 'rank_building_quality', 'code_fips', 'num_fireplace', 'num_fullbath',
-            'num_garage', 'type_heating_system', 'type_landuse', 'num_room', 'num_34_bathroom', 'num_unit', 'num_story']
+# CAT_VARS = ['type_air_conditioning', 'flag_pool', 'flag_tax_delinquency',
+#             'str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
+#             'raw_block', 'raw_census', 'block', 'census',
+#             'num_bathroom_zillow', 'num_bedroom', 'rank_building_quality', 'code_fips', 'num_fireplace', 'num_fullbath',
+#             'num_garage', 'type_heating_system', 'type_landuse', 'num_room', 'num_34_bathroom', 'num_unit', 'num_story']
+
+CAT_VARS = ['code_zip']
 
 
 def new_feature_base_all(train_x_inp, test_x_inp):
@@ -1016,8 +1121,6 @@ def new_feature_base_selected(train_x_inp, test_x_inp):
     areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_finished_calc', 'area_living_type_15')
     vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
 
-    created_var_names = []
-
     def feature_engineering_inner(target_data, raw_data, run_type):
         """target_data are those used for model input, it is output from naive lgb selection, thus does not contain all features"""
 
@@ -1044,23 +1147,26 @@ def new_feature_base_selected(train_x_inp, test_x_inp):
                 target_data[col_name] = raw_data[v] / raw_data[a]
                 target_data.loc[np.abs(raw_data[a]) < 1e-5, col_name] = np.nan
 
+        return created_var_names if run_type == 'test' else None
+
     test_x = test_x_inp.copy()
     train_x = train_x_inp.copy()
-    feature_engineering_inner(test_x, test_x_inp, 'test')
+    created_var_names = feature_engineering_inner(test_x, test_x_inp, 'test')
     feature_engineering_inner(train_x, train_x_inp, 'train')
 
     return train_x, test_x, created_var_names
 
 
-def group_feature_gen(data_train, raw_data_train, raw_data_test, cat_var, num_vars):
+def group_feature_gen(data_train, raw_data_train, raw_data_test, cat_var, num_vars, fe_code):
     """generate diff_mean & ratio_mean across cat_var groups for all numerical variables.
        input raw_data should be output from new_feature_base_selected(), i.e containing all original information of cat & numerical vars.
        input data should be the output from last feature engineering iteration.
        data and raw_data are expected to be of same length.
        Also create the feature for test data and save to local, so that it is easier to be used in the future"""
+    col_dir = 'fe1/' if fe_code == 1 else 'fe2/'
     new_cat_var = create_type_var(raw_data_train, cat_var)
     _ = create_type_var(raw_data_test, cat_var)
-
+    new_features = []
     # region parcel count
     first_num_var = num_vars[0]
     raw_data_train = raw_data_train.join(raw_data_train[first_num_var].groupby(raw_data_train[new_cat_var]).count(), on=new_cat_var, rsuffix='_%s_count' % new_cat_var)
@@ -1073,22 +1179,24 @@ def group_feature_gen(data_train, raw_data_train, raw_data_test, cat_var, num_va
     raw_data_test.drop(count_col, axis=1, inplace=True)
     for num_var in num_vars:
         # group avg
-        raw_data_train = raw_data_train.join(raw_data_train[num_var].groupby(new_cat_var).mean(), on=new_cat_var, rsuffix='_%s_avg' % new_cat_var)
-        raw_data_test = raw_data_test.join(raw_data_test[num_var].groupby(new_cat_var).mean(), on=new_cat_var, rsuffix ='_%s_avg' % new_cat_var)
+        raw_data_train = raw_data_train.join(raw_data_train[num_var].groupby(raw_data_train[new_cat_var]).mean(), on=new_cat_var, rsuffix='_%s_avg' % new_cat_var)
+        raw_data_test = raw_data_test.join(raw_data_test[num_var].groupby(raw_data_test[new_cat_var]).mean(), on=new_cat_var, rsuffix ='_%s_avg' % new_cat_var)
         # neutral
         data_train[num_var + '_%s_neu' % new_cat_var] = raw_data_train[num_var] - raw_data_train[num_var + '_%s_avg' % new_cat_var]
+        new_features.append(num_var + '_%s_neu' % new_cat_var)
 
         neu_col_test = raw_data_test[num_var] - raw_data_test[num_var + '_%s_avg' % new_cat_var]
         neu_col_test[set_na_idx_test] = np.nan
-        neu_col_test.to_csv('fe/' + num_var + '_%s_neu' % new_cat_var + '.csv')
+        neu_col_test.to_csv(col_dir + num_var + '_%s_neu' % new_cat_var + '.csv')
         # ratio
         data_train[num_var + '_%s_ratio' % new_cat_var] = raw_data_train[num_var] / raw_data_train[num_var + '_%s_avg' % new_cat_var]
         data_train.loc[data_train.index[raw_data_train[num_var + '_%s_avg' % new_cat_var] < 1e-5], num_var + '_%s_ratio' % new_cat_var] = np.nan
+        new_features.append(num_var + '_%s_ratio' % new_cat_var)
 
         ratio_col_test = raw_data_test[num_var] / raw_data_test[num_var + '_%s_avg' % new_cat_var]
         ratio_col_test[raw_data_test[num_var + '_%s_avg' % new_cat_var] < 1e-5] = np.nan
         ratio_col_test[set_na_idx_test] = np.nan
-        ratio_col_test.to_csv('fe/' + num_var + '_%s_ratio' % new_cat_var + '.csv')
+        ratio_col_test.to_csv(col_dir + num_var + '_%s_ratio' % new_cat_var + '.csv')
 
         raw_data_train.drop(num_var + '_%s_avg' % new_cat_var, axis=1, inplace=True)
         raw_data_test.drop(num_var + '_%s_avg' % new_cat_var, axis=1, inplace=True)
@@ -1097,21 +1205,54 @@ def group_feature_gen(data_train, raw_data_train, raw_data_test, cat_var, num_va
 
     raw_data_train.drop(new_cat_var, axis=1, inplace=True)
     raw_data_test.drop(new_cat_var, axis=1, inplace=True)
+    return new_features
 
 
-def feature_engineering(train_x_inp, test_x_inp, train_y):
-    keep_num = 80
+def feature_engineering1(train_x_inp, test_x_inp, train_y):
+    keep_num = 80  # keep 80 features at the end of each iteration
     train_x_fe, test_x_fe, new_num_vars = new_feature_base_selected(train_x_inp, test_x_inp)
     train_x_fe_base = train_x_fe.copy()
 
     num_vars = NUM_VARS + new_num_vars
 
     for cat_var in CAT_VARS:
-        group_feature_gen(train_x_fe, train_x_fe_base, test_x_fe, cat_var, num_vars)
+        group_feature_gen(train_x_fe, train_x_fe_base, test_x_fe, cat_var, num_vars, 1)
         gbm = train_lgb(train_x_fe, train_y)
-        features_sorted = feature_importance(gbm, 'after_%s' % cat_var, False)
+        features_sorted = feature_importance(gbm, '_fe1_after_%s' % cat_var, False)
         features_selected = features_sorted[:keep_num] if features_sorted.shape[0] >= keep_num else features_sorted
         train_x_fe = train_x_fe[features_selected]
+
+        for f in os.listdir('fe1/'):
+            if f.split('.')[0] not in features_selected:
+                os.remove('fe1/' + f)
+
+    return train_x_fe, test_x_fe
+
+
+def feature_engineering2(train_x_inp, test_x_inp, train_y):
+    keep_ratio = 0.5  # new features has to rank high in both global wise and local wise to be considered.
+    train_x_fe, test_x_fe, new_num_vars = new_feature_base_selected(train_x_inp, test_x_inp)
+    train_x_fe_base = train_x_fe.copy()
+
+    num_vars = NUM_VARS + new_num_vars
+
+    for cat_var in CAT_VARS:
+        new_features = group_feature_gen(train_x_fe, train_x_fe_base, test_x_fe, cat_var, num_vars, 2)
+        gbm = train_lgb(train_x_fe, train_y)
+        features_sorted = feature_importance(gbm, '_fe2_after_%s' % cat_var, False)
+
+        # filter new features
+        top_features_all = features_sorted[:int(len(features_sorted) * keep_ratio)]
+        sorted_features_new = [f for f in features_sorted if f in new_features]
+        top_features_new = sorted_features_new[:int(len(sorted_features_new) * keep_ratio)]
+        ex_features = [f for f in new_features if (f not in top_features_all or f not in top_features_new)]
+        features_selected = [f for f in features_sorted if f not in ex_features]
+
+        train_x_fe = train_x_fe[features_selected]
+
+        for f in os.listdir('fe2/'):
+            if f.split('.')[0] not in features_selected:
+                os.remove('fe2/' + f)
 
     return train_x_fe, test_x_fe
 
