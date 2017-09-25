@@ -1076,13 +1076,13 @@ def pred_nosea_2step():
 NUM_VARS = ['area_lot', 'area_living_finished_calc', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
             'area_garage', 'area_pool']
 
-# CAT_VARS = ['type_air_conditioning', 'flag_pool', 'flag_tax_delinquency',
-#             'str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
-#             'raw_block', 'raw_census', 'block', 'census',
-#             'num_bathroom_zillow', 'num_bedroom', 'rank_building_quality', 'code_fips', 'num_fireplace', 'num_fullbath',
-#             'num_garage', 'type_heating_system', 'type_landuse', 'num_room', 'num_34_bathroom', 'num_unit', 'num_story']
+CAT_VARS = ['type_air_conditioning', 'flag_pool', 'flag_tax_delinquency',
+            'str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
+            'raw_block', 'raw_census', 'block', 'census',
+            'num_bathroom_zillow', 'num_bedroom', 'rank_building_quality', 'code_fips', 'num_fireplace', 'num_fullbath',
+            'num_garage', 'num_room', 'num_34_bathroom', 'num_unit', 'num_story']
 
-CAT_VARS = ['code_zip']
+# CAT_VARS = ['code_zip']
 
 
 def new_feature_base_all(train_x_inp, test_x_inp):
