@@ -10,6 +10,7 @@ import lightgbm as lgb
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+import seaborn as sns
 
 # from bayes_opt import BayesianOptimization
 pd.set_option('display.max_columns', 20)
@@ -1259,6 +1260,19 @@ def feature_engineering2(train_x_inp, test_x_inp, train_y):
 # CANNOT use parcelid to join for train data, it is not unique
 
 
+def seasonality_analysis(train_x, train_y, month_col):
+    n_iter = 100
+    stack_months = []
+    stack_mean_erros = []
+    for idx in range(n_iter):
+        x, x_cv, y, y_cv = train_test_split(train_x, train_y, test_size=0.33, random_state=idx*3+1, stratify=month_col)
+        gbm = train_lgb(x, y)
+        y_pred = gbm.predict(x_cv)
+        error = y_cv - y_pred
+        error_by_month = pd.Series(error).groupby(month_col).mean()
+        stack_months += list(error_by_month.index.values)
+        stack_mean_erros += list(error_by_month.values)
+    sns.barplot(x=stack_months, y=stack_mean_erros).set_title('mean_error distribution against month')
 
 
 
