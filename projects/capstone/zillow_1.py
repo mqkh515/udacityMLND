@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
 import numpy as np
 import pandas as pd
 import math
@@ -485,7 +488,8 @@ TYPE_CAR_CLEAN_MAP = {
     'num_room': lambda x: x > 11 or (x < 3 and x != 0),
     'num_34_bathroom': lambda x: x >= 2,
     'num_unit': lambda x: x >= 5,
-    'num_story': lambda x: x >= 4
+    'num_story': lambda x: x >= 4,
+    'num_fireplace': lambda x: x >= 3
 }
 
 
@@ -1087,7 +1091,7 @@ CAT_VARS = ['type_air_conditioning', 'flag_pool', 'flag_tax_delinquency',
 
 def new_feature_base_all(train_x_inp, test_x_inp):
 
-    areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_finished_calc', 'area_living_type_15')
+    areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_type_12', 'area_living_type_15')
     vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
 
     def feature_engineering_inner(target_data, raw_data):
@@ -1118,7 +1122,7 @@ def new_feature_base_all(train_x_inp, test_x_inp):
 
 def new_feature_base_selected(train_x_inp, test_x_inp):
 
-    areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_finished_calc', 'area_living_type_15')
+    areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_type_12', 'area_living_type_15')
     vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
 
     def feature_engineering_inner(target_data, raw_data, run_type):
@@ -1128,11 +1132,12 @@ def new_feature_base_selected(train_x_inp, test_x_inp):
         target_data['dollar_taxvalue_structure_land_diff'] = raw_data['dollar_taxvalue_structure'] - raw_data['dollar_taxvalue_land']
         target_data['dollar_taxvalue_structure_land_absdiff'] = np.abs(raw_data['dollar_taxvalue_structure'] - raw_data['dollar_taxvalue_land'])
         target_data['dollar_taxvalue_structure_total_ratio'] = raw_data['dollar_taxvalue_structure'] / raw_data['dollar_taxvalue_total']
-        target_data['dollar_taxvalue_total_structure_ratio'] = raw_data['dollar_taxvalue_total'] / raw_data['dollar_taxvalue_structure']
+        target_data['dollar_taxvalue_total_dollar_tax_ratio'] = raw_data['dollar_taxvalue_total'] / raw_data['dollar_tax']
+        target_data['living_area_proportion'] = raw_data['area_living_finished_calc'] / raw_data['area_lot']
 
         if run_type == 'test':
             created_var_names = ['dollar_taxvalue_structure_land_diff', 'dollar_taxvalue_structure_land_absdiff',
-                                 'dollar_taxvalue_structure_total_ratio', 'dollar_taxvalue_total_structure_ratio']
+                                 'dollar_taxvalue_structure_total_ratio', 'dollar_taxvalue_total_dollar_tax_ratio', 'living_area_proportion']
 
         # per_square variables
         for v in vars:
@@ -1257,6 +1262,36 @@ def feature_engineering2(train_x_inp, test_x_inp, train_y):
     return train_x_fe, test_x_fe
 
 # CANNOT use parcelid to join for train data, it is not unique
+
+
+def rank_corr(col1, col2, data):
+    col1_s, col2_s = data[col1], data[col2]
+    na_idx = np.logical_or(col1_s.isnull(), col2_s.isnull())
+    use_data_col1 = col1_s[~na_idx]
+    use_data_col2 = col2_s[~na_idx]
+    corr_val = np.corrcoef(np.argsort(np.argsort(use_data_col1)), np.argsort(np.argsort(use_data_col2)))[0,1]
+    return 0.0 if np.isnan(corr_val) else corr_val
+
+
+def rank_corr_matrix(features, data):
+    n_f = len(features)
+    df = pd.DataFrame(np.zeros((n_f, n_f)), columns=features, index=features)
+    calced_features = []
+    for idx1 in range(n_f):
+        for idx2 in range(n_f):
+            f1, f2 = features[idx1], features[idx2]
+            calced_features.append((f1, f2))
+            df.loc[f1, f2] = rank_corr(f1, f2, data)
+    df.to_csv('rank_corr.csv')
+
+
+def filter_features(features, features_rank, data):
+    """pairwise filter features, for each pair, if 
+        1, both-non-nan index rank corr is lower than 0.8, keep both.
+        2, if higher, check count of xor nan index, if more than 10 precent of all data , .
+       input features_rank as a dictionary for quick reference"""
+
+
 
 
 
