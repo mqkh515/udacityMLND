@@ -13,6 +13,9 @@ import lightgbm as lgb
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+from sklearn.preprocessing import normalize
+from sklearn.svm import LinearSVR
 import seaborn as sns
 
 # from bayes_opt import BayesianOptimization
@@ -28,35 +31,145 @@ nmap_new_to_orig =  dict(zip(feature_info.index.values, feature_info['orig_name'
 
 feature_imp_naive_lgb = pd.read_csv('records/feature_importance_raw_all.csv')
 
+
+def float_to_str(num):
+    """float to 0_*** format"""
+    s = '%.3f' % num
+    return '_'.join(s.split('.'))
+
+
+Y_Q_MAP = {'0_500': 0.006,
+           '0_250': -0.0253,
+           '0_750': 0.0392,
+           '0_010': -0.3425,
+           '0_990': 0.463882,
+           '0_001': -1.158,
+           '0_999': 1.6207}
+
+
+params_base = {
+    'boosting_type': 'gbdt',
+    'feature_fraction': 0.95,
+    'bagging_fraction': 0.85,
+    'bagging_freq': 5,
+    'verbosity': 0,
+}
+
+
+params_clf = {
+    'objective': 'binary',
+    'metric': {'auc'}
+}
+
+
+params_reg = {
+    'objective': 'regression_l1',
+    'metric': {'l1'}
+}
+
+
+params_reg_naive = {
+    'num_leaves': 40,
+    'min_data_in_leaf': 300,
+    'learning_rate': 0.01,
+    'lambda_l2': 0.02,
+    'num_boosting_rounds': 1500
+}
+
+
+params_clf_abs_error ={
+    'num_leaves': 30,
+    'min_data_in_leaf': 300,
+    'learning_rate': 0.0035,
+    'lambda_l2': 0.0045,
+    'num_boosting_rounds': 2200
+}
+
+params_clf_sign_error = {
+    'num_leaves': 40,
+    'min_data_in_leaf': 280,
+    'learning_rate': 0.0055,
+    'lambda_l2': 0.01,
+    'num_boosting_rounds': 1500
+}
+
+params_clf_mid_error = {
+    'num_leaves': 30,
+    'min_data_in_leaf': 220,
+    'learning_rate': 0.004,
+    'lambda_l2': 0.013,
+    'num_boosting_rounds': 2500
+}
+
+
+params_reg_abs_error_big = {
+    'num_leaves': 32,
+    'min_data_in_leaf': 105,
+    'learning_rate': 0.0075,
+    'lambda_l2': 0.0121,
+    'num_boosting_rounds': 1800
+}
+
+
+params_reg_abs_error_small = {
+    'num_leaves': 28,
+    'min_data_in_leaf': 100,
+    'learning_rate': 0.0012,
+    'lambda_l2': 0.05,
+    'num_boosting_rounds': 1800
+}
+
+
+params_reg_sign_error_pos = {
+    'num_leaves': 25,
+    'min_data_in_leaf': 113,
+    'learning_rate': 0.0026,
+    'lambda_l2': 0.0014,
+    'num_boosting_rounds': 1500
+}
+
+
+params_reg_sign_error_neg = {
+    'num_leaves': 36,
+    'min_data_in_leaf': 134,
+    'learning_rate': 0.002,
+    'lambda_l2': 0.041,
+    'num_boosting_rounds': 1500
+}
+
+
+params_reg_mid_error_pos = {
+    'num_leaves': 22,
+    'min_data_in_leaf': 120,
+    'learning_rate': 0.0016,
+    'lambda_l2': 0.0026,
+    'num_boosting_rounds': 1700
+}
+
+
+params_reg_mid_error_neg = {
+    'num_leaves': 31,
+    'min_data_in_leaf': 211,
+    'learning_rate': 0.002,
+    'lambda_l2': 0.0001,
+    'num_boosting_rounds': 2700
+}
+
+
 # params_naive = {
 #     'boosting_type': 'gbdt',
 #     'objective': 'regression_l1',
 #     'metric': {'l1'},
-#     'num_leaves': 40,
-#     'min_data_in_leaf': 300,
-#     'learning_rate': 0.01,
-#     'lambda_l2': 0.02,
+#     'num_leaves': 48,
+#     'min_data_in_leaf': 200,
+#     'learning_rate': 0.0045,
+#     'lambda_l2': 0.004,
 #     'feature_fraction': 0.8,
 #     'bagging_fraction': 0.7,
 #     'bagging_freq': 5,
 #     'verbosity': 0,
-#     'num_boosting_rounds': 1500
+#     'num_boosting_rounds': 2200
 # }
-
-params_naive = {
-    'boosting_type': 'gbdt',
-    'objective': 'regression_l1',
-    'metric': {'l1'},
-    'num_leaves': 48,
-    'min_data_in_leaf': 200,
-    'learning_rate': 0.0045,
-    'lambda_l2': 0.004,
-    'feature_fraction': 0.8,
-    'bagging_fraction': 0.7,
-    'bagging_freq': 5,
-    'verbosity': 0,
-    'num_boosting_rounds': 2200
-}
 
 
 params_fe = {
@@ -168,8 +281,8 @@ def lgb_raw(train_x, train_y, test_x):
         'boosting_type': 'gbdt',
         'objective': 'regression_l1',
         'metric': {'l1'},
-        'num_leaves': 30,
-        'min_data_in_leaf': 250,
+        'num_leaves': 40,
+        'min_data_in_leaf': 300,
         'learning_rate': 0.01,
         'lambda_l2': 0.02,
         'feature_fraction': 0.8,
@@ -181,6 +294,22 @@ def lgb_raw(train_x, train_y, test_x):
 
     gbm = train_lgb(train_x, train_y, params)
     return gbm.predict(test_x)
+
+
+def outlier_handling(train_data, test_data):
+    # set extreme x to na
+    train_data, _ = outlier_x_clean(train_data, train_data['logerror'], test_data, type_id='na', thresh=0.001)
+    # remove extreme y from train
+    train_data, _ = outlier_y_rm(train_data, train_data['logerror'], None, 0.001)
+    return train_data, test_data
+
+
+def outlier_handling_cv(train_x, train_y, test_data, thresh):
+    # set extreme x to na
+    # train_x, train_y = outlier_x_clean(train_x, train_y, test_data, type_id='na', thresh=thresh)
+    # remove extreme y from train
+    train_x, train_y = outlier_y_rm(train_x, train_y, None, thresh)
+    return train_x, train_y
 
 
 def outlier_y_rm(train_x, train_y, test_data, thresh):
@@ -206,9 +335,11 @@ def outlier_y_capfloor(train_x, train_y, test_data, thresh):
     return train_x, train_y
 
 
-def outlier_x_clean(train_x_inp, train_y_inp, test_x, type_train='rm', type_test=None, thresh=0.001):
-    """2 strategies for x in train: remove, set to NA. (cap / floor is not expected to help for a tree based model).
-       2 strategies for test: set to NA, leave as it is. 
+def outlier_x_clean(train_x_inp, train_y_inp, test_x, type_id='na', thresh=0.001):
+    """type_id:
+       na: fill outliers with na for both train and test
+       mean: fill outlier with mean for both train and test
+       rm: remove outlier from train
        For each numerical variables, need to consider to do one-side or 2-sided cleaning"""
     rm_idx_train = {}
     train_x = train_x_inp.copy()
@@ -227,7 +358,7 @@ def outlier_x_clean(train_x_inp, train_y_inp, test_x, type_train='rm', type_test
         idx_test = np.logical_or(pos_idx_test, neg_idx_test)
         rm_idx_train[col] = idx_train
         train_x.loc[idx_train, col] = np.nan
-        if type_test == 'na':
+        if type_id == 'na':
             test_x.loc[idx_test, col] = np.nan
 
     def proc_outlier_cat(col):
@@ -235,7 +366,7 @@ def outlier_x_clean(train_x_inp, train_y_inp, test_x, type_train='rm', type_test
         idx_test = test_x[col].apply(TYPE_CAR_CLEAN_MAP[col])
         rm_idx_train[col] = idx_train
         train_x.loc[idx_train, col] = np.nan
-        if type_test == 'na':
+        if type_id == 'na':
             test_x.loc[idx_test, col] = np.nan
 
     # year built use left side only
@@ -245,15 +376,17 @@ def outlier_x_clean(train_x_inp, train_y_inp, test_x, type_train='rm', type_test
     for num_var in ('area_lot', 'dollar_tax', 'area_living_type_12', 'dollar_taxvalue_structure',
                     'area_living_finished_calc', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
                     'area_garage', 'area_living_type_15', 'area_pool'):
-        proc_outlier_num(num_var, thresh, 1-thresh)
+        if num_var in train_x_inp.columns:
+            proc_outlier_num(num_var, thresh, 1-thresh)
 
     for cat_var in TYPE_CAR_CLEAN_MAP:
         if cat_var in ('type_heating_system', 'type_landuse'):
             # type variables have already been coded to int in load_data_naive_lgb
             continue
-        proc_outlier_cat(cat_var)
+        if cat_var in train_x_inp.columns:
+            proc_outlier_cat(cat_var)
 
-    if type_train == 'rm':
+    if type_id == 'rm':
         rm_idx = np.logical_or.reduce(list(rm_idx_train.values()))
         print('n_rows to remove: %d' % np.sum(rm_idx))
         train_x = train_x.loc[train_x.index[~rm_idx], :]
@@ -574,6 +707,24 @@ def create_type_var(data, col):
     return new_col_name
 
 
+def load_data_raw_v2():
+    properties2016 = pd.read_csv('data/properties_2016.csv', low_memory=False)
+    # property_cleaning(properties2016)
+    properties2017 = pd.read_csv('data/properties_2017.csv', low_memory=False)
+    # property_cleaning(properties2017)
+    train2016 = pd.read_csv('data/train_2016_v2.csv')
+    train2017 = pd.read_csv('data/train_2017.csv')
+
+    sample_submission = pd.read_csv('../input/sample_submission.csv', low_memory=False)
+    train2016 = pd.merge(train2016, properties2016, how='left', on='parcelid')
+    train2017 = pd.merge(train2017, properties2017, how='left', on='parcelid')
+    train2017[['structuretaxvaluedollarcnt', 'landtaxvaluedollarcnt', 'taxvaluedollarcnt', 'taxamount']] = np.nan
+    train = pd.concat([train2016, train2017], axis=0)
+    test = pd.merge(sample_submission[['ParcelId']], properties2016.rename(columns={'parcelid': 'ParcelId'}),how='left', on='ParcelId')
+    del properties2016, properties2017, train2016, train2017
+    return train, test
+
+
 def load_data_raw():
     # init load data
     prop_data = pd.read_csv('data/properties_2016.csv', header=0)
@@ -584,6 +735,15 @@ def load_data_raw():
     for col in prop_data.columns:
         if prop_data[col].dtype == np.float64:
             prop_data.loc[:, col] = prop_data[col].astype(np.float32)
+    prop_data[['latitude', 'longitude']] /= 1e6
+    prop_data[['latitude', 'longitude']] /= 1e6
+
+    features_f = open('features_raw_lgb.txt', 'r')
+    f_list = [f for f in features_f.read().split('\n') if f]
+    features_f.close()
+
+    for f in f_list:
+        feature_factory(f, prop_data)
 
     train_data = error_data.merge(prop_data, how='left', on='parcelid')
     # train_data.to_csv('data/train_data_merge.csv', index=False)
@@ -595,7 +755,16 @@ def load_data_raw():
 
     clean_class3_var(train_data, test_data)
 
-    return train_data, test_data
+    # raw feature filtering
+    keep_feature = list(feature_info.index.values) + f_list
+    for col in ['census_block', 'raw_census_block', 'year_assess']:
+        keep_feature.remove(col)
+    test_x = test_data[keep_feature]
+    train_x = train_data[keep_feature]
+    train_y = train_data['logerror']
+
+    # train_x, train_y = outlier_x_clean(train_x, train_y, test_x, type_id='na', thresh=0.001)
+    return train_x, train_y, test_x
 
 
 def clean_class3_var(train_data, test_data):
@@ -622,14 +791,15 @@ def convert_cat_col(train_data, test_data, col):
     test_data.loc[test_data.index[test_data[col].isnull()], col] = 'nan'
     train_data.loc[train_data.index[train_data[col].isnull()], col] = 'nan'
 
+    col_new = col + '_lgb'
     # create and use map from test data only
     uni_vals = np.sort(test_data[col].unique()).tolist()
     m = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
-    train_data.loc[:, col] = train_data[col].apply(lambda x: m[x])
-    train_data.loc[:, col] = train_data[col].astype('category')
+    train_data[col_new] = train_data[col].apply(lambda x: m[x])
+    train_data[col_new] = train_data[col_new].astype('category')
 
-    test_data.loc[:, col] = test_data[col].apply(lambda x: m[x])
-    test_data.loc[:, col] = test_data[col].astype('category')
+    test_data[col_new] = test_data[col].apply(lambda x: m[x])
+    test_data[col_new] = test_data[col_new].astype('category')
 
 
 def convert_cat_col_single(data, col):
@@ -638,8 +808,23 @@ def convert_cat_col_single(data, col):
     data.loc[data.index[data[col].isnull()], col] = 'nan'
     uni_vals = np.sort(data[col].unique()).tolist()
     map = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
-    data.loc[:, col] = data[col].apply(lambda x: map[x])
-    data.loc[:, col] = data[col].astype('category')
+    col_new = col + '_lgb'
+    data[col_new] = data[col].apply(lambda x: map[x])
+    data[col_new] = data[col_new].astype('category')
+
+
+def lgb_data_prep(data):
+    keep_feature = list(data.columns)
+    for col in ['num_bathroom_assessor', 'code_county', 'area_living_finished_calc', 'area_firstfloor_assessor']:
+        if col in keep_feature:
+            keep_feature.remove(col)
+
+    cols_copy = keep_feature.copy()
+    for col in cols_copy:
+        if col in feature_info.index and feature_info.loc[col, 'type'] == 'cat' and col in keep_feature:
+            keep_feature.remove(col)
+
+    return data[keep_feature]
 
 
 def load_data_naive_lgb_v2(train_data, test_data):
@@ -748,7 +933,7 @@ def load_data_naive_lgb_submit(train_data, test_data):
     return test_x, train_x, train_y
 
 
-def train_lgb_with_val(train_x, train_y, params_inp=params_naive):
+def train_lgb_with_val(train_x, train_y, params_inp):
     # train - validaiton split
     train_x_use, val_x, train_y_use, val_y = train_test_split(train_x, train_y, test_size=0.3, random_state=42)
 
@@ -767,7 +952,7 @@ def train_lgb_with_val(train_x, train_y, params_inp=params_naive):
     return gbm
 
 
-def train_lgb(train_x, train_y, params_inp=params_naive):
+def train_lgb(train_x, train_y, params_inp):
     lgb_train = lgb.Dataset(train_x, train_y)
     params = params_inp.copy()
     num_boost_round = params.pop('num_boosting_rounds')
@@ -779,12 +964,12 @@ def train_xgb(train_x, train_y):
     pass
 
 
-def cv_lgb_final(train_x, train_y, params_inp=params_naive):
+def cv_lgb_final(train_x, train_y, params_inp):
     lgb_train = lgb.Dataset(train_x, train_y)
     params = params_inp.copy()
     num_boost_round = params.pop('num_boosting_rounds')
     eval_hist = lgb.cv(params, lgb_train, num_boost_round=num_boost_round, early_stopping_rounds=30)
-    return eval_hist['l1-mean'][-1]
+    return eval_hist['l1-mean'][-1], eval_hist['l1-stdv'][-1]
 
 
 def feature_importance(gbm, label=None, print_to_scr=True):
@@ -836,7 +1021,7 @@ def feature_importance(gbm, label=None, print_to_scr=True):
         df_display.to_csv('records/feature_importance_%s.csv' % label, index=False)
     if print_to_scr:
         print(df_display)
-    return features_sorted
+    return features_sorted, rank_sorted
 
 
 def feature_importance_rank(gbm, col_inp, col_ref=None):
@@ -916,17 +1101,23 @@ def feature_importance_rank(gbm, col_inp, col_ref=None):
 #     print('BO search finished')
 
 
-def search_lgb_random(train_x, train_y, label='', n_iter=80):
+def search_lgb_random(train_x, train_y, params, label='', n_iter=50,
+                      min_data_in_leaf_range=(100, 500),
+                      num_leaf_range=(30, 50)):
     lgb_train = lgb.Dataset(train_x, train_y)
+    if 'num_boosting_rounds' in params:
+        params.pop('num_boosting_rounds')
+
+    metric = list(params['metric'])[0]
 
     def rand_min_data_in_leaf():
-        return np.random.randint(200, 500)
+        return np.random.randint(min_data_in_leaf_range[0], min_data_in_leaf_range[1])
 
     def rand_learning_rate():
         return np.random.uniform(1, 3)
 
     def rand_num_leaf():
-        return np.random.randint(30, 50)
+        return np.random.randint(num_leaf_range[0], num_leaf_range[1])
 
     def rand_lambda_l2():
         return np.random.uniform(1, 4)
@@ -937,24 +1128,16 @@ def search_lgb_random(train_x, train_y, label='', n_iter=80):
                        'min_data_in_leaf': rand_min_data_in_leaf(),
                        'learning_rate': 0.1 ** rand_learning_rate(),
                        'lambda_l2': 0.1 ** rand_lambda_l2()}
-        params = {
-            'boosting_type': 'gbdt',
-            'objective': 'regression_l1',
-            'metric': {'l1'},
-            'feature_fraction': 0.8,
-            'bagging_fraction': 0.7,
-            'bagging_freq': 5,
-            'verbosity': 0
-        }
         params.update(rand_params)
         eval_hist = lgb.cv(params, lgb_train, num_boost_round=3000, early_stopping_rounds=30)
-        res.append([eval_hist['l1-mean'][-1],
+        res.append([eval_hist['%s-mean' % metric][-1],
+                    eval_hist['%s-stdv' % metric][-1],
                     rand_params['num_leaves'],
                     rand_params['min_data_in_leaf'],
                     rand_params['learning_rate'],
                     rand_params['lambda_l2']])
         print('finished %d / %d' % (i, n_iter))
-    res_df = pd.DataFrame(res, columns=['score', 'num_leaves', 'min_data_in_leaf', 'learning_rate', 'lambda_l2'])
+    res_df = pd.DataFrame(res, columns=['%s-mean' % metric, '%s-stdv' % metric, 'num_leaves', 'min_data_in_leaf', 'learning_rate', 'lambda_l2'])
     res_df.to_csv('temp_cv_res_random_%s.csv' % label, index=False)
 
 
@@ -1003,9 +1186,10 @@ def search_lgb_grid(train_x, train_y):
     res_df.to_csv('records/temp_cv_res_grid.csv', index=False)
 
 
-def submit_nosea(score, index, ver):
+def submit_nosea(score, ver):
+    submission = pd.read_csv('data/sample_submission.csv', header=0)
     df = pd.DataFrame()
-    df['ParcelId'] = index
+    df['ParcelId'] = submission['ParcelId']
     for col in ('201610', '201611', '201612', '201710', '201711', '201712'):
         df[col] = score
     date_str = ''.join(str(datetime.date.today()).split('-'))
@@ -1043,7 +1227,7 @@ def pred_nosea_2step():
 
 NUM_VARS = ['area_lot', 'area_living_type_12', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
             'area_garage', 'area_pool']
-#
+
 CAT_VARS = ['type_air_conditioning', 'flag_pool', 'flag_tax_delinquency', 'type_heating_system', 'type_landuse',
             'str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
             'raw_block', 'raw_census', 'block', 'census',
@@ -1051,7 +1235,7 @@ CAT_VARS = ['type_air_conditioning', 'flag_pool', 'flag_tax_delinquency', 'type_
             'num_garage', 'num_room', 'num_unit', 'num_story']
 
 # NUM_VARS = ['area_living_type_12']
-
+#
 # CAT_VARS = ['num_unit']
 
 
@@ -1167,6 +1351,9 @@ def groupby_feature_gen(num_col, group_col, data, raw_data, test_data, op_type):
         new_col = num_col + '__' + new_cat_var + '__absneu'
         data[new_col] = np.abs(raw_data[num_col] - avg_col) / avg_col
         data.loc[avg_col < 1e-5, new_col] = np.nan
+    elif op_type == 'mean':
+        new_col = num_col + '__' + new_cat_var + '__mean'
+        data[new_col] = avg_col
     else:
         raise Exception('unknown op type')
 
@@ -1174,6 +1361,51 @@ def groupby_feature_gen(num_col, group_col, data, raw_data, test_data, op_type):
     data.loc[rm_idx, new_col] = np.nan
     # clear newly created col
     test_data.drop(new_cat_var, axis=1, inplace=True)
+    raw_data.drop(new_cat_var, axis=1, inplace=True)
+
+    return new_col
+
+
+def groupby_feature_gen_single(num_col, group_col, data, raw_data, op_type):
+    """data: already applied lgb prep, can be directly used for lgb train.
+       raw_data: type_var before lgb prep, used for group_var and mean_var creation.
+       test_data: full data, used to determine nan index.
+       created feature follows format num_var__groupby__cat_var__op_type"""
+    new_cat_var = create_type_var(raw_data, group_col)
+
+    # first find too small groups and remove, too small groups are defined as
+    # 1, first sort groups by group size.
+    # 2, cumsum <= total non-nan samples * 0.001
+    group_count = raw_data[new_cat_var].groupby(raw_data[new_cat_var]).count()
+    group_count = group_count.sort_values()
+    small_group = set(group_count.index[group_count.cumsum() < int(np.sum(~raw_data[new_cat_var].isnull()) * 0.0001)])
+
+    rm_idx = raw_data[new_cat_var].apply(lambda x: x in small_group)
+
+    # now create variables
+    # group_avg
+    avg_col = raw_data[new_cat_var].map(raw_data[num_col].groupby(raw_data[new_cat_var]).mean())
+    # neu col
+    if op_type == 'neu':
+        new_col = num_col + '__' + new_cat_var + '__neu'
+        data[new_col] = (raw_data[num_col] - avg_col) / avg_col
+        data.loc[avg_col < 1e-5, new_col] = np.nan
+    elif op_type == 'absneu':
+        new_col = num_col + '__' + new_cat_var + '__absneu'
+        data[new_col] = np.abs(raw_data[num_col] - avg_col) / avg_col
+        data.loc[avg_col < 1e-5, new_col] = np.nan
+    elif op_type == 'mean':
+        new_col = num_col + '__' + new_cat_var + '__mean'
+        data[new_col] = avg_col
+    elif op_type == 'count':
+        new_col = num_col + '__' + new_cat_var + '__count'
+        data[new_col] = raw_data[new_cat_var].groupby(raw_data[new_cat_var]).count()
+    else:
+        raise Exception('unknown op type')
+
+    # rm small group idx
+    data.loc[rm_idx, new_col] = np.nan
+    # clear newly created col
     raw_data.drop(new_cat_var, axis=1, inplace=True)
 
     return new_col
@@ -1195,6 +1427,7 @@ def feature_engineering1(train_x_inp, test_x_inp, train_y):
     train_x_fe, test_x_fe, new_num_vars = new_feature_base_selected(train_x_inp, test_x_inp)  # copy is craeted here
     train_x_fe_raw = train_x_fe.copy()
     prep_for_lgb_single(train_x_fe)
+    train_x_fe = lgb_data_prep(train_x_fe)
 
     num_vars = NUM_VARS + new_num_vars
     # num_vars = NUM_VARS
@@ -1203,7 +1436,7 @@ def feature_engineering1(train_x_inp, test_x_inp, train_y):
         old_features = list(train_x_fe.columns)
         new_features = groupby_feature_gen_batch(num_vars, cat_var, train_x_fe, train_x_fe_raw, test_x_fe)
         gbm = train_lgb(train_x_fe, train_y)
-        features_sorted = feature_importance(gbm, 'fe1_after_%s' % cat_var, print_to_scr=False)
+        features_sorted, _ = feature_importance(gbm, 'fe1_after_%s' % cat_var, print_to_scr=False)
         rm_features = filter_features(new_features, old_features, dict(zip(features_sorted, list(range(1, len(features_sorted) + 1)))), train_x_fe)
         features_sorted = [f for f in features_sorted if f not in rm_features]
         features_selected = features_sorted[:keep_num] if len(features_sorted) >= keep_num else features_sorted
@@ -1220,6 +1453,7 @@ def feature_engineering2(train_x_inp, test_x_inp, train_y):
     train_x_fe, test_x_fe, new_num_vars = new_feature_base_selected(train_x_inp, test_x_inp)  # copy is craeted here
     train_x_fe_raw = train_x_fe.copy()
     prep_for_lgb_single(train_x_fe)
+    train_x_fe = lgb_data_prep(train_x_fe)
 
     num_vars = NUM_VARS + new_num_vars
     # num_vars = NUM_VARS
@@ -1228,7 +1462,7 @@ def feature_engineering2(train_x_inp, test_x_inp, train_y):
         old_features = list(train_x_fe.columns)
         new_features = groupby_feature_gen_batch(num_vars, cat_var, train_x_fe, train_x_fe_raw, test_x_fe)
         gbm = train_lgb(train_x_fe, train_y)
-        features_sorted = feature_importance(gbm, 'fe2_after_%s' % cat_var, print_to_scr=False)
+        features_sorted, _ = feature_importance(gbm, 'fe2_after_%s' % cat_var, print_to_scr=False)
         rm_features = filter_features(new_features, old_features, dict(zip(features_sorted, list(range(1, len(features_sorted) + 1)))), train_x_fe)
         features_sorted = [f for f in features_sorted if f not in rm_features]
 
@@ -1244,6 +1478,104 @@ def feature_engineering2(train_x_inp, test_x_inp, train_y):
     dump_feature_list(train_x_fe.columns, 'fe2')
 
     return train_x_fe, test_x_fe
+
+
+def feature_engineering3(train_x_inp, train_y, params, label):
+
+    f_name = 'fe_%s.txt' % label
+
+    def write_to_file(out_str):
+        f = open(f_name, 'a')
+        f.write(out_str)
+        f.close()
+
+    def fe_cv(data, col_name):
+        gbm = train_lgb(data, train_y)
+        feature_sorted, avg_rank_sorted = feature_importance(gbm, print_to_scr=False)
+        col_rank = avg_rank_sorted[list(feature_sorted).index(col_name)]
+        cv_mean, cv_stdv = cv_lgb_final(data, train_y, params)
+        write_to_file('%s,%.7f,%.7f,%.1f\n' % (col_name, cv_mean, cv_stdv, col_rank))
+
+    train_x = train_x_inp.copy()
+    prep_for_lgb_single(train_x)
+    train_x_lgb = lgb_data_prep(train_x)
+
+    write_to_file('col,score_mean,score_stdv,avg_rank\n')
+
+    # raw lgb
+    cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
+    write_to_file('%s,%.7f,%.7f,%.1f\n' % ('None', cv_mean, cv_stdv, 0))
+
+    new_num_features = []
+
+    # try each of the engineered features
+    areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_type_12', 'area_living_type_15')
+    num_vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
+    # areas = ('area_lot',)
+    # num_vars = ('dollar_tax',)
+
+    train_x_lgb['dollar_taxvalue_structure_land_diff'] = train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']
+    train_x_inp['dollar_taxvalue_structure_land_diff'] = train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']
+    new_num_features.append('dollar_taxvalue_structure_land_diff')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_land_diff')
+    train_x_lgb.drop('dollar_taxvalue_structure_land_diff', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_structure_land_absdiff'] = np.abs(train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land'])
+    train_x_inp['dollar_taxvalue_structure_land_absdiff'] = np.abs(train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land'])
+    new_num_features.append('dollar_taxvalue_structure_land_absdiff')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_land_absdiff')
+    train_x_lgb.drop('dollar_taxvalue_structure_land_absdiff', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_structure_land_diff_norm'] = (train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']) / train_x_inp['dollar_taxvalue_total']
+    train_x_inp['dollar_taxvalue_structure_land_diff_norm'] = (train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']) / train_x_inp['dollar_taxvalue_total']
+    new_num_features.append('dollar_taxvalue_structure_land_diff_norm')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_land_diff_norm')
+    train_x_lgb.drop('dollar_taxvalue_structure_land_diff_norm', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_structure_land_absdiff_norm'] = np.abs(train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']) / train_x_inp['dollar_taxvalue_total']
+    train_x_inp['dollar_taxvalue_structure_land_absdiff_norm'] = np.abs(train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']) / train_x_inp['dollar_taxvalue_total']
+    new_num_features.append('dollar_taxvalue_structure_land_absdiff_norm')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_land_absdiff_norm')
+    train_x_lgb.drop('dollar_taxvalue_structure_land_absdiff_norm', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_structure_total_ratio'] = train_x_inp['dollar_taxvalue_structure'] / train_x_inp['dollar_taxvalue_total']
+    train_x_inp['dollar_taxvalue_structure_total_ratio'] = train_x_inp['dollar_taxvalue_structure'] / train_x_inp['dollar_taxvalue_total']
+    new_num_features.append('dollar_taxvalue_structure_total_ratio')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_total_ratio')
+    train_x_lgb.drop('dollar_taxvalue_structure_total_ratio', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_total_dollar_tax_ratio'] = train_x_inp['dollar_taxvalue_total'] / train_x_inp['dollar_tax']
+    train_x_inp['dollar_taxvalue_total_dollar_tax_ratio'] = train_x_inp['dollar_taxvalue_total'] / train_x_inp['dollar_tax']
+    new_num_features.append('dollar_taxvalue_total_dollar_tax_ratio')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_total_dollar_tax_ratio')
+    train_x_lgb.drop('dollar_taxvalue_total_dollar_tax_ratio', axis=1, inplace=True)
+
+    train_x_lgb['living_area_proportion'] = train_x_inp['area_living_type_12'] / train_x_inp['area_lot']
+    train_x_inp['living_area_proportion'] = train_x_inp['area_living_type_12'] / train_x_inp['area_lot']
+    new_num_features.append('living_area_proportion')
+    fe_cv(train_x_lgb, 'living_area_proportion')
+    train_x_lgb.drop('living_area_proportion', axis=1, inplace=True)
+
+    # per_square variables
+    for v in num_vars:
+        for a in areas:
+            col_name = v + '__per__' + a
+            train_x_lgb[col_name] = train_x_inp[v] / train_x_inp[a]
+            train_x_inp[col_name] = train_x_inp[v] / train_x_inp[a]
+            new_num_features.append(col_name)
+            train_x_lgb.loc[np.abs(train_x_inp[a]) < 1e-5, col_name] = np.nan
+            fe_cv(train_x_lgb, col_name)
+            train_x_lgb.drop(col_name, axis=1, inplace=True)
+
+    # groupby features
+    num_features = new_num_features + NUM_VARS
+    # num_features = NUM_VARS
+    for cat_var in CAT_VARS:
+        for num_var in num_features:
+            for op_type in ('neu', 'absneu', 'mean'):
+                col_name = groupby_feature_gen_single(num_var, cat_var, train_x_lgb, train_x_inp, op_type)
+                fe_cv(train_x_lgb, col_name)
+                train_x_lgb.drop(col_name, axis=1, inplace=True)
 
 
 def param_search_fe(test_x_inp, train_x_inp, train_y, fe_label):
@@ -1353,7 +1685,405 @@ def load_feature_list(label):
     return features
 
 
+def feature_factory(col, data):
+    """add col to data, generated from raw data columns"""
+
+    if col == 'dollar_taxvalue_structure_land_diff':
+        data[col] = data['dollar_taxvalue_structure'] - data['dollar_taxvalue_land']
+
+    if col == 'dollar_taxvalue_structure_land_absdiff':
+        data[col] = np.abs(data['dollar_taxvalue_structure'] - data['dollar_taxvalue_land'])
+
+    if col == 'dollar_taxvalue_structure_land_diff_norm':
+        data[col] = (data['dollar_taxvalue_structure'] - data['dollar_taxvalue_land']) / data['dollar_taxvalue_total']
+
+    if col == 'dollar_taxvalue_structure_land_absdiff_norm':
+        data[col] = np.abs(data['dollar_taxvalue_structure'] - data['dollar_taxvalue_land']) / data['dollar_taxvalue_total']
+
+    if col == 'dollar_taxvalue_structure_total_ratio':
+        data[col] = data['dollar_taxvalue_structure'] / data['dollar_taxvalue_total']
+
+    if col == 'dollar_taxvalue_total_dollar_tax_ratio':
+        data[col] = data['dollar_taxvalue_total'] / data['dollar_tax']
+
+    if col == 'living_area_proportion':
+        data[col] = data['area_living_type_12'] / data['area_lot']
+
+    if '__per__' in col:
+        if not '__groupby__' in col:
+            v, a = col.split('__per__')
+            data[col] = data[v] / data[a]
+            data.loc[np.abs(data[a]) < 1e-5, col] = np.nan
+
+    if '__groupby__' in col:
+        num_var, cat_var_and_op_type = col.split('__groupby__')
+        cat_var, op_type = cat_var_and_op_type.split('__')
+        num_var_in_raw_data = num_var in data.columns
+        if not num_var_in_raw_data:
+            feature_factory(num_var, data)
+        _ = groupby_feature_gen_single(num_var, cat_var, data, data, op_type)
+        if not num_var_in_raw_data:
+            data.drop(num_var, axis=1, inplace=True)
 
 
+# -------------------------------------------------------------- 2layer ------------------------------------------------------------
+def pred_2layer_abs_clf(train_x, train_y, test_x):
+
+    params_clf_local = params_base.copy()
+    params_reg_local = params_base.copy()
+    params_clf_local.update(params_clf)
+    params_reg_local.update(params_reg)
+
+    params_clf_local.update(params_clf_abs_error)
+    params_reg_big = params_reg_local.copy()
+    params_reg_big.update(params_reg_abs_error_big)
+    params_reg_small = params_reg_local.copy()
+    params_reg_small.update(params_reg_abs_error_small)
+
+    train_y_clf = np.zeros(train_y.shape[0])
+    mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
+    train_y_clf[mark_1_idx] = 1
+    gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
+    prob_big = gbm_clf.predict(test_x)
+
+    train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+    train_y_big_error = train_y[mark_1_idx].copy()
+    gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
+    big_error_pred = gbm_big_error.predict(test_x)
+
+    train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+    train_y_small_error = train_y[~mark_1_idx].copy()
+    gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
+    small_error_pred = gbm_small_error.predict(test_x)
+
+    return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
 
 
+def pred_2layer_sign_clf(train_x, train_y, test_x):
+
+    params_clf_local = params_base.copy()
+    params_reg_local = params_base.copy()
+    params_clf_local.update(params_clf)
+    params_reg_local.update(params_reg)
+
+    params_clf_local.update(params_clf_sign_error)
+    params_reg_big = params_reg_local.copy()
+    params_reg_big.update(params_reg_sign_error_pos)
+    params_reg_small = params_reg_local.copy()
+    params_reg_small.update(params_reg_sign_error_neg)
+
+    train_y_clf = np.zeros(train_y.shape[0])
+    mark_1_idx = train_y > 0
+    train_y_clf[mark_1_idx] = 1
+    gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
+    prob_big = gbm_clf.predict(test_x)
+
+    train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+    train_y_big_error = train_y[mark_1_idx].copy()
+    gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
+    big_error_pred = gbm_big_error.predict(test_x)
+
+    train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+    train_y_small_error = train_y[~mark_1_idx].copy()
+    gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
+    small_error_pred = gbm_small_error.predict(test_x)
+
+    return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
+
+
+def pred_2layer_mid_clf(train_x, train_y, test_x):
+
+    params_clf_local = params_base.copy()
+    params_reg_local = params_base.copy()
+    params_clf_local.update(params_clf)
+    params_reg_local.update(params_reg)
+
+    params_clf_local.update(params_clf_mid_error)
+    params_reg_big = params_reg_local.copy()
+    params_reg_big.update(params_reg_mid_error_pos)
+    params_reg_small = params_reg_local.copy()
+    params_reg_small.update(params_reg_mid_error_neg)
+
+    train_y_clf = np.zeros(train_y.shape[0])
+    mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
+    train_y_clf[mark_1_idx] = 1
+    gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
+    prob_big = gbm_clf.predict(test_x)
+
+    train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+    train_y_big_error = train_y[mark_1_idx].copy()
+    gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
+    big_error_pred = gbm_big_error.predict(test_x)
+
+    train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+    train_y_small_error = train_y[~mark_1_idx].copy()
+    gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
+    small_error_pred = gbm_small_error.predict(test_x)
+
+    return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
+
+
+def pred_blending_raw_sign_clf(train_x, train_y, test_x):
+    raw_pred = lgb_raw(train_x, train_y, test_x)
+    sign_clf_pred = pred_2layer_sign_clf(train_x, train_y, test_x)
+    return (raw_pred + sign_clf_pred) / 2
+
+
+def param_search_2layer():
+    train_x, train_y, test_x = load_data_raw()
+    del test_x
+    gc.collect()
+
+    # prep for lgb
+    prep_for_lgb_single(train_x)
+    train_x_lgb = lgb_data_prep(train_x)
+
+    n_iter = 50
+
+    # 3 sets of run
+    params_clf_local = params_base.copy()
+    params_reg_local = params_base.copy()
+    params_clf_local.update(params_clf)
+    params_reg_local.update(params_reg)
+
+    # 1, clf by abs error size
+    # train_y_clf_run1 = np.zeros(train_y.shape[0])
+    # mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
+    # train_y_clf_run1[mark_1_idx] = 1
+    # search_lgb_random(train_x_lgb, train_y_clf_run1, params_clf_local, label='clf_abserror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
+    #
+    # train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
+    # train_y_large_error = train_y[mark_1_idx].copy()
+    # search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_large_abserror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+    #
+    # train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
+    # train_y_small_error = train_y[~mark_1_idx].copy()
+    # search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_small_abserror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+
+    # 2, clf by sign of error
+    train_y_clf_run2 = np.zeros(train_y.shape[0])
+    mark_1_idx = train_y > 0
+    train_y_clf_run2[mark_1_idx] = 1
+    search_lgb_random(train_x_lgb, train_y_clf_run2, params_clf_local, label='clf_signerror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
+
+    train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
+    train_y_large_error = train_y[mark_1_idx].copy()
+    search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_pos_signerror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+
+    train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
+    train_y_small_error = train_y[~mark_1_idx].copy()
+    search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_neg_signerror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+
+    # # 3, clf by median of error
+    # train_y_clf_run3 = np.zeros(train_y.shape[0])
+    # mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
+    # train_y_clf_run3[mark_1_idx] = 1
+    # search_lgb_random(train_x_lgb, train_y_clf_run3, params_clf_local, label='clf_miderror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
+    #
+    # train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
+    # train_y_large_error = train_y[mark_1_idx].copy()
+    # search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_pos_miderror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+    #
+    # train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
+    # train_y_small_error = train_y[~mark_1_idx].copy()
+    # search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_neg_miderror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+
+
+def cv_2layer(train_x, train_y, op_type, class_type):
+
+    params_clf_local = params_base.copy()
+    params_reg_local = params_base.copy()
+    params_clf_local.update(params_clf)
+    params_reg_local.update(params_reg)
+
+    if op_type == 'abs':
+        mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
+        if class_type == 'clf':
+            params_clf_local.update(params_clf_abs_error)
+            train_y_clf = np.zeros(train_y.shape[0])
+            train_y_clf[mark_1_idx] = 1
+            train_lgb_with_val(train_x, train_y_clf, params_clf_local)
+        elif class_type == 'big':
+            params_reg_local.update(params_reg_abs_error_big)
+            train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+            train_y_large_error = train_y[mark_1_idx].copy()
+            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+        elif class_type == 'small':
+            params_reg_local.update(params_reg_abs_error_small)
+            train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+            train_y_large_error = train_y[~mark_1_idx].copy()
+            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+
+    elif op_type == 'sign':
+        mark_1_idx = train_y > 0
+        if class_type == 'clf':
+            params_clf_local.update(params_clf_sign_error)
+            train_y_clf = np.zeros(train_y.shape[0])
+            train_y_clf[mark_1_idx] = 1
+            train_lgb_with_val(train_x, train_y_clf, params_clf_local)
+        elif class_type == 'pos':
+            params_reg_local.update(params_reg_sign_error_pos)
+            train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+            train_y_large_error = train_y[mark_1_idx].copy()
+            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+        elif class_type == 'neg':
+            params_reg_local.update(params_reg_sign_error_neg)
+            train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+            train_y_large_error = train_y[~mark_1_idx].copy()
+            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+
+    elif op_type == 'mid':
+        mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
+        if class_type == 'clf':
+            params_clf_local.update(params_clf_mid_error)
+            train_y_clf = np.zeros(train_y.shape[0])
+            train_y_clf[mark_1_idx] = 1
+            train_lgb_with_val(train_x, train_y_clf, params_clf_local)
+        elif class_type == 'pos':
+            params_reg_local.update(params_reg_mid_error_pos)
+            train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+            train_y_large_error = train_y[mark_1_idx].copy()
+            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+        elif class_type == 'neg':
+            params_reg_local.update(params_reg_mid_error_neg)
+            train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+            train_y_large_error = train_y[~mark_1_idx].copy()
+            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+
+
+# def model_2layer(train_x, train_y, test_x):
+#     """input train_y is expected to be original log error"""
+#     # for each x clf large / small error
+#     train_x_error_clf, train_y_error_clf, test_x_error_clf = error_clf_data_prep(test_x, train_x, train_y)
+#     gbm_clf = error_clf_train(train_x_error_clf, train_y_error_clf)
+#     error_clf_prob = gbm_clf.predict(test_x_error_clf)
+#
+#     # predict x with large error model
+#     train_x_error_big, test_x_error_big = big_error_data_prep(test_x, train_x)
+#     gbm_error_big = big_error_train(train_x_error_big, train_y)
+#     pred_error_big = gbm_error_big.predict(test_x_error_big)
+#
+#     # predict x with small error model
+#     train_x_error_small, test_x_error_small = small_error_data_perp(test_x, train_x)
+#     gbm_error_small = big_error_train(train_x_error_small, train_y)
+#     pred_error_small = gbm_error_big.predict(test_x_error_small)
+#
+#     # final prediction
+#     pred = pred_error_big * error_clf_prob + pred_error_small * (1 - error_clf_prob)
+#     return pred
+#
+#
+# # -------------------------------------------------------- SVR ------------------------------------------------------------
+# def svr_data_prep(train_x):
+#     feature_float = ['area_living_finished_calc',
+#                     'latitude', 'longitude', 'area_lot', 'area_pool',
+#                     'dollar_taxvalue_structure', 'dollar_taxvalue_total', 'dollar_taxvalue_land', 'dollar_tax']
+#     feature_int = ['num_room', 'year_built', 'num_bathroom_assessor', 'num_bedroom', 'num_fullbath']
+#     keep_feature = feature_float + feature_int
+#     svr_train_data = train_x[keep_feature].copy()
+#     for f in feature_float:
+#         svr_train_data[f].fillna(svr_train_data[f].mean(), inplace=True)
+#     for f in feature_int:
+#         svr_train_data[f].fillna(svr_train_data[f].mode()[0], inplace=True)
+#
+#     svr_train_data['dollar_taxvalue_structure_land_diff'] = svr_train_data['dollar_taxvalue_structure'] - svr_train_data['dollar_taxvalue_land']
+#     svr_train_data['dollar_taxvalue_structure_land_absdiff'] = np.abs(svr_train_data['dollar_taxvalue_structure'] - svr_train_data['dollar_taxvalue_land'])
+#     svr_train_data['dollar_taxvalue_structure_land_diff_norm'] = (svr_train_data['dollar_taxvalue_structure'] - svr_train_data['dollar_taxvalue_land']) / svr_train_data['dollar_taxvalue_total']
+#     svr_train_data['dollar_taxvalue_structure_land_absdiff_norm'] = np.abs(svr_train_data['dollar_taxvalue_structure'] - svr_train_data['dollar_taxvalue_land']) / svr_train_data['dollar_taxvalue_total']
+#     svr_train_data['dollar_taxvalue_structure_total_ratio'] = svr_train_data['dollar_taxvalue_structure'] / svr_train_data['dollar_taxvalue_total']
+#     svr_train_data['dollar_taxvalue_total_dollar_tax_ratio'] = svr_train_data['dollar_taxvalue_total'] / svr_train_data['dollar_tax']
+#     svr_train_data['living_area_proportion'] = svr_train_data['area_living_finished_calc'] / svr_train_data['area_lot']
+#
+#     for v in ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total'):
+#         for a in ('area_lot', 'area_living_finished_calc'):
+#             col_name = v + '_per_' + a
+#             svr_train_data[col_name] = svr_train_data[v] / svr_train_data[a]
+#
+#     # create high cardinality var mapping
+#     for cat_var in ['str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
+#                 'raw_block', 'raw_census', 'block', 'census']:
+#         for num_var in ['area_living_finished_calc',
+#                     'latitude', 'longitude', 'area_lot', 'area_pool',
+#                     'dollar_taxvalue_structure', 'dollar_taxvalue_total', 'dollar_taxvalue_land', 'dollar_tax']:
+#             var_name = num_var + '_group_mean_by_' + cat_var
+#             cat_var_col = train_x[cat_var].copy()
+#             cat_var_col.fillna(cat_var_col.mode()[0], inplace=True)
+#             svr_train_data[var_name] = cat_var_col.map(svr_train_data[num_var].groupby(cat_var_col).mean())
+#
+#     # normalize predictors for SVM
+#     scr_train_data = pd.DataFrame(normalize(svr_train_data), columns=svr_train_data.columns, index=svr_train_data.index)
+#     return scr_train_data
+#
+#
+# def svr_grid_search(x, y):
+#     Cs = [0.001, 0.01, 0.1, 1, 10]
+#     epsilons = [0.0001, 0.001, 0.01, 0.1, 1]
+#     param_grid = {'C': Cs, 'epsilon' : epsilons}
+#     grid_search = GridSearchCV(LinearSVR(random_state=42), param_grid, cv=5, scoring='neg_mean_absolute_error')
+#     grid_search.fit(x, y)
+#     return grid_search
+#
+#
+# def svr_random_search(x, y):
+#     param_dist = {'C': np.random.uniform(0.1, 2, 20).tolist(),
+#                   'epsilon': np.random.uniform(0.001, 0.015, 20).tolist()}
+#     random_search = RandomizedSearchCV(LinearSVR(random_state=42), param_dist, cv=5, scoring='neg_mean_absolute_error', n_iter=30)
+#     random_search.fit(x, y)
+#     return random_search
+#
+#
+# def svr_train(x, y):
+#     svr = LinearSVR(random_state=42, C=1, epsilon=0.0025)
+#     svr.fit(x, y)
+#     return svr
+#
+#
+# def svr_pred(x, y, x_test):
+#     svr = svr_train(x, y)
+#     return svr.predict(x_test)
+#
+#
+# def svr_cv(x, y):
+#     return cv_meta_model(x, y, None, svr_pred, outlier_thresh=0.001, outlier_handling=None)
+#
+#
+# def svr_lgb_stack_pred(train_x, train_y, test_x):
+#     svr_train_x = svr_data_prep(train_x)
+#     svr_test_x = svr_data_prep(test_x)
+#     svr_pred_y = svr_pred(svr_train_x, train_y, svr_test_x)
+#     svr_residual = train_y - svr_pred(svr_train_x, train_y, svr_train_x)
+#
+#     # prep for lgb categorical variables should be applied outside of this function call
+#     lgb_train_x = lgb_data_prep(train_x)
+#     lgb_test_x = lgb_data_prep(test_x)
+#     gbm = train_lgb(lgb_train_x, svr_residual)
+#     lgb_pred = gbm.predict(lgb_test_x)
+#     return lgb_pred + svr_pred_y
+#
+#
+# def svr_lgb_blend_pred(train_x, train_y, test_x):
+#     svr_train_x = svr_data_prep(train_x)
+#     svr_test_x = svr_data_prep(test_x)
+#     svr = svr_train(svr_train_x, train_y)
+#     svr_train_y = svr.predict(svr_train_x)
+#     svr_test_y = svr.predict(svr_test_x)
+#
+#     lgb_train_x = lgb_data_prep(train_x)
+#     lgb_test_x = lgb_data_prep(test_x)
+#     gbm = train_lgb(lgb_train_x, train_y)
+#     lgb_train_y = gbm.predict(lgb_train_x)
+#     lgb_test_y = gbm.predict(lgb_test_x)
+#
+#     # # fit linear reg
+#     # lr = LinearRegression()
+#     # lr.fit(np.array([svr_train_y, lgb_train_y]).T, train_y)
+#     #
+#     # svr_coef, lgb_coef = lr.coef_
+#     # print('intercept: %.6f' % lr.intercept_)
+#     # print('svr_coef: %.6f' % svr_coef)
+#     # print('lgb_coef: %.6f' % lgb_coef)
+#     #
+#     # # use liear reg to predict
+#     # return lr.predict(np.array([svr_test_y, lgb_test_y]).T)
+#
+#     return (svr_test_y + lgb_test_y) / 2
