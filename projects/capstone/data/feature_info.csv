@@ -1,7 +1,7 @@
 orig_name,new_name,type,class,prop_missing,train_missing
 airconditioningtypeid,type_air_conditioning,cat,2,0.728154101,0.681185267
 architecturalstyletypeid,type_architectural_style,cat,4,0.997969662,0.997108834
-assessmentyear,year_assess,cat,4,0,0
+assessmentyear,year_assess,num,4,0,0
 basementsqft,area_base_finished,num,4,0.999454646,0.999523678
 bathroomcnt,num_bathroom_assessor,num,2,0.003839587,0
 bedroomcnt,num_bedroom,num,1,0.003835567,0

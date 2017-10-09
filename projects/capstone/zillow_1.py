@@ -18,7 +18,7 @@ from sklearn.preprocessing import normalize
 from sklearn.svm import LinearSVR
 import seaborn as sns
 
-# from bayes_opt import BayesianOptimization
+from bayes_opt import BayesianOptimization
 pd.set_option('display.max_columns', 20)
 pd.set_option('display.width', 1000)
 
@@ -30,7 +30,6 @@ nmap_orig_to_new =  dict(zip(feature_info['orig_name'].values, feature_info.inde
 nmap_new_to_orig =  dict(zip(feature_info.index.values, feature_info['orig_name'].values))
 
 feature_imp_naive_lgb = pd.read_csv('records/feature_importance_raw_all.csv')
-
 
 def float_to_str(num):
     """float to 0_*** format"""
@@ -53,6 +52,7 @@ params_base = {
     'bagging_fraction': 0.85,
     'bagging_freq': 5,
     'verbosity': 0,
+    'lambda_l2': 0,
 }
 
 
@@ -409,6 +409,134 @@ def cat_num_to_str(data, col_name):
         data.loc[:, col_name] = data[col_name].apply(lambda x: str(int(x)) if not np.isnan(x) else np.nan)
 
 
+def property_trans(prop_data):
+    """only does transformation, no cleaning"""
+
+    def mark_flag_col(col_name):
+        """mark bool for numerical columns, mark True for val > 0, and False otherwise (include NaN)"""
+        data_marks_true = prop_data[col_name] >= 0.5
+        prop_data.loc[prop_data.index[data_marks_true], col_name] = 'TRUE'
+        prop_data.loc[prop_data.index[~data_marks_true], col_name] = 'FALSE'
+
+    def mark_flag_col_tax_delinquency():
+        test_data_marks_true = prop_data['taxdelinquencyflag'] == 'Y'
+        prop_data.loc[prop_data.index[test_data_marks_true], 'taxdelinquencyflag'] = 'TRUE'
+        prop_data.loc[prop_data.index[~test_data_marks_true], 'taxdelinquencyflag'] = 'FALSE'
+
+    def clear_cat_col_group(col, groups):
+        """set given groups of a categorical col to na"""
+        in_group_flag = prop_data[col].apply(lambda x: x in groups)
+        prop_data.loc[prop_data[col].index[in_group_flag], col] = np.nan
+
+    def col_fill_na(col, fill_type):
+        if fill_type == 'mode':
+            prop_data[col].fillna(prop_data[col].mode().values[0], inplace=True)
+        elif fill_type == 'mean':
+            prop_data[col].fillna(prop_data[col].mean(), inplace=True)
+        elif fill_type == '0':
+            prop_data[col].fillna(0, inplace=True)
+        else:
+            raise Exception('unknown fill_type')
+
+    cat_num_to_str(prop_data, 'airconditioningtypeid')
+    cat_num_to_str(prop_data, 'architecturalstyletypeid')
+    cat_num_to_str(prop_data, 'buildingclasstypeid')
+    cat_num_to_str(prop_data, 'decktypeid')
+    cat_num_to_str(prop_data, 'fips')
+    mark_flag_col('hashottuborspa')
+    cat_num_to_str(prop_data, 'heatingorsystemtypeid')
+    mark_flag_col('poolcnt')
+    mark_flag_col('pooltypeid10')
+    mark_flag_col('pooltypeid2')
+    mark_flag_col('pooltypeid7')
+    prop_data['type_pool'] = 'None'
+    prop_data.loc[prop_data.index[prop_data['pooltypeid2'] == 'TRUE'], 'type_pool'] = 'TRUE'
+    prop_data.loc[prop_data.index[prop_data['pooltypeid7'] == 'TRUE'], 'type_pool'] = 'FALSE'
+    cat_num_to_str(prop_data, 'propertycountylandusecode')
+    cat_num_to_str(prop_data, 'propertylandusetypeid')
+    cat_num_to_str(prop_data, 'propertyzoningdesc')
+
+    # raw_census_block, raw_census, raw_block.
+    prop_data['temp'] = prop_data['rawcensustractandblock'].apply(lambda x: str(round(x * 1000000)) if not np.isnan(x) else 'nan')
+    prop_data['raw_census'] = prop_data['temp'].apply(lambda x: x[4:10] if not x == 'nan' else np.nan)
+    prop_data['raw_block'] = prop_data['temp'].apply(lambda x: x[10:] if not x == 'nan' else np.nan)
+    prop_data.drop('temp', axis=1, inplace=True)
+    prop_data.drop('rawcensustractandblock', axis=1, inplace=True)
+
+    cat_num_to_str(prop_data, 'regionidcity')
+    cat_num_to_str(prop_data, 'regionidcounty')
+    cat_num_to_str(prop_data, 'regionidneighborhood')
+    cat_num_to_str(prop_data, 'regionidzip')
+    cat_num_to_str(prop_data, 'storytypeid')
+    cat_num_to_str(prop_data, 'typeconstructiontypeid')
+    mark_flag_col('fireplaceflag')
+
+    # census_block
+    prop_data['censustractandblock'] = prop_data['censustractandblock'].apply(lambda x: str(int(x)) if not np.isnan(x) else 'nan')
+    prop_data['census'] = prop_data['censustractandblock'].apply(lambda x: x[4:10] if not x == 'nan' else np.nan)
+    prop_data['block'] = prop_data['censustractandblock'].apply(lambda x: x[10:] if not x == 'nan' else np.nan)
+    prop_data.drop('censustractandblock', axis=1, inplace=True)
+
+    # for name in feature_info.index.values:
+    #     if name[:4] == 'num_':
+    #         cat_num_to_str(prop_data, nmap_new_to_orig[name])
+    #         feature_info.loc[name, 'type'] = 'cat'
+
+    # name columns
+    prop_data.rename(columns=nmap_orig_to_new, inplace=True)
+
+
+TYPE_VAR_CLEAN_MAP_OUTLIER = {
+    'type_air_conditioning': lambda x: x in ['11', '9', '3'],
+    'type_architectural_style': lambda x: x in ['10'],
+    'area_base_finished': lambda x: x > 1600,
+    'num_bathroom_assessor': lambda x: x >= 9,
+    'num_bathroom_zillow': lambda x: x >= 9,
+    'num_bedroom': lambda x: x >= 11,
+    'rank_building_quality': lambda x: x in (2,),
+    'area_firstfloor_zillow': lambda x: x > 5000,
+    'area_living_finished_calc': lambda x: x > 15000,
+    'area_living_type_12': lambda x: x > 15000,
+    'area_living_type_15': lambda x: x > 10000,
+    'area_firstfloor_assessor': lambda x: x > 6500,
+    'area_living_type_6': lambda x: x > 5500,
+    'num_fireplace': lambda x: x ==  5,
+    'num_fullbath': lambda x: x >= 11,
+    'num_garage': lambda x: x >= 6,
+    'area_garage': lambda x: x > 3500,
+    'type_heating_system': lambda x: x in ('11', '14', '12', '10'),
+
+    'type_landuse': lambda x: x in ('260', '263', '264', '267', '275', '31', '47'),
+    'num_room': lambda x: x > 11 or (x < 3 and x != 0),
+    'num_34_bathroom': lambda x: x >= 2,
+    'num_unit': lambda x: x >= 5,
+    'num_story': lambda x: x >= 4,
+}
+
+
+def property_cleaning_v2(prop_data):
+    """clean cols according to train_data distribution"""
+
+    def clear_cat_col_group(col, groups):
+        """set given groups of a categorical col to na"""
+        in_group_flag = prop_data[col].apply(lambda x: x in groups)
+        prop_data.loc[prop_data[col].index[in_group_flag], col] = np.nan
+
+    clear_cat_col_group('type_air_conditioning', ['12'])
+    clear_cat_col_group('type_architectural_style', ['27', '5'])
+    clear_cat_col_group('type_heating_system', ['19', '21'])
+    clear_cat_col_group('type_construction', ['11'])
+    clear_cat_col_group('type_landuse', ['270', '279'])
+
+
+    # num_garage and area_garage not consistent
+    mark_idx = prop_data.index[np.logical_and(np.abs(prop_data['area_garage'] - 0) < 1e-12, prop_data['num_garage'] > 0)]
+    sub_df = prop_data.loc[mark_idx, ['area_garage', 'num_garage']]
+    sub_df = sub_df.join(prop_data['area_garage'].groupby(prop_data['num_garage']).mean(), on='num_garage', rsuffix='_avg')
+    prop_data.loc[mark_idx, 'area_garage'] = sub_df['area_garage_avg']
+
+
+
 def property_cleaning(prop_data):
     """basic feature clearning, for num_ variables, use as categorical. 
        for categorical variables, group small categories"""
@@ -629,7 +757,7 @@ def property_cleaning(prop_data):
 
 
 # groups to be set to na or grouped to another
-TYPE_CAR_CLEAN_MAP = {
+TYPE_VAR_CLEAN_MAP = {
     'num_bathroom_zillow': lambda x: x > 6,
     'num_bedroom': lambda x: x >= 7,
     'rank_building_quality': lambda x: x in (6, 8, 11, 12),
@@ -707,22 +835,74 @@ def create_type_var(data, col):
     return new_col_name
 
 
-def load_data_raw_v2():
-    properties2016 = pd.read_csv('data/properties_2016.csv', low_memory=False)
-    # property_cleaning(properties2016)
-    properties2017 = pd.read_csv('data/properties_2017.csv', low_memory=False)
-    # property_cleaning(properties2017)
-    train2016 = pd.read_csv('data/train_2016_v2.csv')
-    train2017 = pd.read_csv('data/train_2017.csv')
+def load_prop_data():
+    sample_submission = pd.read_csv('data/sample_submission.csv', low_memory=False)
+    sub_index = sample_submission['ParcelId']
+    prop_2016 = pd.read_csv('data/properties_2016.csv', low_memory=False)
+    prop_2016.index = prop_2016['parcelid']
+    prop_2017 = pd.read_csv('data/properties_2017.csv', low_memory=False)
+    prop_2017.index = prop_2017['parcelid']
 
-    sample_submission = pd.read_csv('../input/sample_submission.csv', low_memory=False)
-    train2016 = pd.merge(train2016, properties2016, how='left', on='parcelid')
-    train2017 = pd.merge(train2017, properties2017, how='left', on='parcelid')
-    train2017[['structuretaxvaluedollarcnt', 'landtaxvaluedollarcnt', 'taxvaluedollarcnt', 'taxamount']] = np.nan
-    train = pd.concat([train2016, train2017], axis=0)
-    test = pd.merge(sample_submission[['ParcelId']], properties2016.rename(columns={'parcelid': 'ParcelId'}),how='left', on='ParcelId')
-    del properties2016, properties2017, train2016, train2017
-    return train, test
+    def size_control(data):
+        data.loc[:, ['latitude', 'longitude']] = data.loc[:, ['latitude', 'longitude']] / 1e6
+        for col in data.columns:
+            if data[col].dtype == np.float64:
+                data.loc[:, col] = data[col].astype(np.float32)
+
+    size_control(prop_2016)
+    size_control(prop_2017)
+
+    # make sure prediction index order is inline with expected submission index order
+    prop_2016 = prop_2016.loc[sub_index, :]
+    prop_2017 = prop_2017.loc[sub_index, :]
+
+    property_trans(prop_2016)
+    property_trans(prop_2017)
+
+    property_cleaning_v2(prop_2016)
+    property_cleaning_v2(prop_2017)
+
+    return prop_2016, prop_2017
+
+
+def load_train_data(prop_2016, prop_2017, new_features=tuple()):
+    """if engineered features exists, it should be performed at prop_data level, and then join to error data"""
+    for f in new_features:
+        # group-by performed separately on 2016 and 2017 data
+        feature_factory(f, prop_2016)
+        feature_factory(f, prop_2017)
+
+    train_2016 = pd.read_csv('data/train_2016_v2.csv')
+    train_2017 = pd.read_csv('data/train_2017.csv')
+
+    train_2016 = pd.merge(train_2016, prop_2016, how='left', on='parcelid')
+    train_2017 = pd.merge(train_2017, prop_2017, how='left', on='parcelid')
+
+    train = pd.concat([train_2016, train_2017], axis=0)
+    train['sale_month'] = train['transactiondate'].apply(lambda x: x.split('-')[1])  # get error data transaction date to month
+    train_y = train['logerror']
+    train_x = train.drop('logerror', axis=1)
+    return train_x, train_y
+
+
+def prop_compare(prop_2016, prop_2017):
+    print('2016 shape: ' + str(prop_2016.shape))
+    print('2017 shape: ' + str(prop_2017.shape))
+    n_sample = prop_2016.shape[0]
+    out = []
+    for col in prop_2016:
+        if col == 'parcelid':
+            continue
+        missing_2016 = np.sum(prop_2016[col].isnull()) / n_sample
+        missing_2017 = np.sum(prop_2017[col].isnull()) / n_sample
+        # disagreed rows:
+        diff_nan = np.sum(np.logical_xor(prop_2016[col].isnull(), prop_2017[col].isnull())) / n_sample
+        non_val_idx = np.logical_and(~prop_2016[col].isnull(), ~prop_2017[col].isnull())
+        diff_val = np.sum(prop_2016.loc[non_val_idx, col] != prop_2017.loc[non_val_idx, col]) / n_sample
+        out.append([col, missing_2016, missing_2017, diff_nan, diff_val])
+        print('%s: 2016 missing: %.6f; 2017 missing: %.6f; nan_diff: %.6f; val_diff: %.6f' % (col, missing_2016, missing_2017, diff_nan, diff_val))
+    df = pd.DataFrame(out, columns=['col', 'missing_2016', 'missing_2017', 'diff_nan', 'diff_val'])
+    df.to_csv('data/compare_2016_2017.csv')
 
 
 def load_data_raw():
@@ -1051,59 +1231,61 @@ def feature_importance_rank(gbm, col_inp, col_ref=None):
         print('%s: rank split = %d, rank gain = %d, avg_rank = %.1f' % (col_ref, rank_ref_split, rank_ref_gain, rank_ref_avg))
 
 
-# def search_lgb_bo(train_x, train_y, label='', n_iter=80):
-#     lgb_train = lgb.Dataset(train_x, train_y)
-#
-#     def lgb_evaluate(num_leaves,
-#                      min_data_in_leaf,
-#                      learning_rate_log,
-#                      lambda_l2_log):
-#         learning_rate = 0.1 ** learning_rate_log
-#         lambda_l2 = 0.1 ** lambda_l2_log
-#         num_leaves = int(num_leaves)
-#         min_data_in_leaf = int(min_data_in_leaf)
-#         params = {
-#             'boosting_type': 'gbdt',
-#             'objective': 'regression_l1',
-#             'metric': {'l1'},
-#             'num_leaves': num_leaves,
-#             'min_data_in_leaf': min_data_in_leaf,
-#             'learning_rate': learning_rate,
-#             'lambda_l2': lambda_l2,
-#             'feature_fraction': 0.8,
-#             'bagging_fraction': 0.7,
-#             'bagging_freq': 5,
-#             'verbosity': 0
-#         }
-#
-#         eval_hist = lgb.cv(params, lgb_train, num_boost_round=3000, early_stopping_rounds=30)
-#         return -eval_hist['l1-mean'][-1]
-#
-#     search_range = {'num_leaves': (30, 50),
-#                     'min_data_in_leaf': (200, 500),
-#                     'learning_rate_log': (1, 3),
-#                     'lambda_l2_log': (1, 4)}
-#     lgb_bo = BayesianOptimization(lgb_evaluate, search_range)
-#     lgb_bo.maximize(n_iter=n_iter, init_points=5)
-#
-#     res = lgb_bo.res['all']
-#     res_df = pd.DataFrame()
-#     res_df['score'] = -np.array(res['values'])
-#     for v in search_range:
-#         if v in ('learning_rate_log', 'lambda_l2_log'):
-#             v_label = v[:-4]
-#             apply_func = lambda x: 0.1 ** x
-#         else:
-#             v_label = v
-#             apply_func = lambda x: x
-#         res_df[v_label] = np.array([apply_func(d[v]) for d in res['params']])
-#     res_df.to_csv('temp_cv_res_bo_%s.csv' % label, index=False)
-#     print('BO search finished')
+def search_lgb_bo(train_x, train_y, params, label='', n_iter=80,
+                  min_data_in_leaf_range=(200, 800),
+                  num_leaf_range=(30, 80),
+                  do_clf=False):
+    """for mae target, need to flip sign to maximize.
+       for auc, no need to flip sign"""
+    lgb_train = lgb.Dataset(train_x, train_y)
+
+    def lgb_evaluate(num_leaves,
+                     min_data_in_leaf,
+                     learning_rate_log,
+                     # lambda_l2_log
+                     ):
+        learning_rate = 0.1 ** learning_rate_log
+        # lambda_l2 = 0.1 ** lambda_l2_log
+        num_leaves = int(num_leaves)
+        min_data_in_leaf = int(min_data_in_leaf)
+        params.update({'num_leaves': num_leaves,
+                       'min_data_in_leaf': min_data_in_leaf,
+                       'learning_rate': learning_rate,})
+
+        eval_hist = lgb.cv(params, lgb_train, num_boost_round=3000, early_stopping_rounds=30)
+        if do_clf:
+            return eval_hist['auc-mean'][-1]
+        else:
+            return -eval_hist['l1-mean'][-1]
+
+    search_range = {'num_leaves': (num_leaf_range[0], num_leaf_range[1]),
+                    'min_data_in_leaf': (min_data_in_leaf_range[0], min_data_in_leaf_range[1]),
+                    'learning_rate_log': (1, 3),
+                    # 'lambda_l2_log': (1, 4)
+                    }
+    lgb_bo = BayesianOptimization(lgb_evaluate, search_range)
+    lgb_bo.maximize(n_iter=n_iter, init_points=5)
+
+    res = lgb_bo.res['all']
+    res_df = pd.DataFrame()
+    res_df['score'] = -np.array(res['values'])
+    for v in search_range:
+        if v in ('learning_rate_log',
+                 #'lambda_l2_log'
+                 ):
+            v_label = v[:-4]
+            apply_func = lambda x: 0.1 ** x
+        else:
+            v_label = v
+            apply_func = lambda x: x
+        res_df[v_label] = np.array([apply_func(d[v]) for d in res['params']])
+    res_df.to_csv('temp_cv_res_bo_%s.csv' % label, index=False)
+    print('BO search finished')
 
 
-def search_lgb_random(train_x, train_y, params, label='', n_iter=50,
-                      min_data_in_leaf_range=(100, 500),
-                      num_leaf_range=(30, 50)):
+def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
+                      min_data_in_leaf_range=(200, 800),
+                      num_leaf_range=(30, 80)):
     lgb_train = lgb.Dataset(train_x, train_y)
     if 'num_boosting_rounds' in params:
         params.pop('num_boosting_rounds')
@@ -1127,7 +1309,8 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=50,
         rand_params = {'num_leaves': rand_num_leaf(),
                        'min_data_in_leaf': rand_min_data_in_leaf(),
                        'learning_rate': 0.1 ** rand_learning_rate(),
-                       'lambda_l2': 0.1 ** rand_lambda_l2()}
+                       # 'lambda_l2': 0.1 ** rand_lambda_l2()
+                       }
         params.update(rand_params)
         eval_hist = lgb.cv(params, lgb_train, num_boost_round=3000, early_stopping_rounds=30)
         res.append([eval_hist['%s-mean' % metric][-1],
@@ -1135,9 +1318,12 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=50,
                     rand_params['num_leaves'],
                     rand_params['min_data_in_leaf'],
                     rand_params['learning_rate'],
-                    rand_params['lambda_l2']])
+                    # rand_params['lambda_l2']
+                    ])
         print('finished %d / %d' % (i, n_iter))
-    res_df = pd.DataFrame(res, columns=['%s-mean' % metric, '%s-stdv' % metric, 'num_leaves', 'min_data_in_leaf', 'learning_rate', 'lambda_l2'])
+    res_df = pd.DataFrame(res, columns=['%s-mean' % metric, '%s-stdv' % metric, 'num_leaves', 'min_data_in_leaf', 'learning_rate',
+                                        # 'lambda_l2'
+                                        ])
     res_df.to_csv('temp_cv_res_random_%s.csv' % label, index=False)
 
 
@@ -1490,6 +1676,125 @@ def feature_engineering3(train_x_inp, train_y, params, label):
         f.close()
 
     def fe_cv(data, col_name):
+        gbm = train_lgb(data, train_y)
+        feature_sorted, avg_rank_sorted = feature_importance(gbm, print_to_scr=False)
+        col_rank = avg_rank_sorted[list(feature_sorted).index(col_name)]
+        cv_mean, cv_stdv = cv_lgb_final(data, train_y, params)
+        write_to_file('%s,%.7f,%.7f,%.1f\n' % (col_name, cv_mean, cv_stdv, col_rank))
+
+    train_x = train_x_inp.copy()
+    prep_for_lgb_single(train_x)
+    train_x_lgb = lgb_data_prep(train_x)
+
+    write_to_file('col,score_mean,score_stdv,avg_rank\n')
+
+    # raw lgb
+    cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
+    write_to_file('%s,%.7f,%.7f,%.1f\n' % ('None', cv_mean, cv_stdv, 0))
+
+    new_num_features = []
+
+    # try each of the engineered features
+    areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_type_12', 'area_living_type_15')
+    num_vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
+    # areas = ('area_lot',)
+    # num_vars = ('dollar_tax',)
+
+    train_x_lgb['dollar_taxvalue_structure_land_diff'] = train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']
+    train_x_inp['dollar_taxvalue_structure_land_diff'] = train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']
+    new_num_features.append('dollar_taxvalue_structure_land_diff')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_land_diff')
+    train_x_lgb.drop('dollar_taxvalue_structure_land_diff', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_structure_land_absdiff'] = np.abs(train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land'])
+    train_x_inp['dollar_taxvalue_structure_land_absdiff'] = np.abs(train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land'])
+    new_num_features.append('dollar_taxvalue_structure_land_absdiff')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_land_absdiff')
+    train_x_lgb.drop('dollar_taxvalue_structure_land_absdiff', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_structure_land_diff_norm'] = (train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']) / train_x_inp['dollar_taxvalue_total']
+    train_x_inp['dollar_taxvalue_structure_land_diff_norm'] = (train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']) / train_x_inp['dollar_taxvalue_total']
+    new_num_features.append('dollar_taxvalue_structure_land_diff_norm')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_land_diff_norm')
+    train_x_lgb.drop('dollar_taxvalue_structure_land_diff_norm', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_structure_land_absdiff_norm'] = np.abs(train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']) / train_x_inp['dollar_taxvalue_total']
+    train_x_inp['dollar_taxvalue_structure_land_absdiff_norm'] = np.abs(train_x_inp['dollar_taxvalue_structure'] - train_x_inp['dollar_taxvalue_land']) / train_x_inp['dollar_taxvalue_total']
+    new_num_features.append('dollar_taxvalue_structure_land_absdiff_norm')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_land_absdiff_norm')
+    train_x_lgb.drop('dollar_taxvalue_structure_land_absdiff_norm', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_structure_total_ratio'] = train_x_inp['dollar_taxvalue_structure'] / train_x_inp['dollar_taxvalue_total']
+    train_x_inp['dollar_taxvalue_structure_total_ratio'] = train_x_inp['dollar_taxvalue_structure'] / train_x_inp['dollar_taxvalue_total']
+    new_num_features.append('dollar_taxvalue_structure_total_ratio')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_structure_total_ratio')
+    train_x_lgb.drop('dollar_taxvalue_structure_total_ratio', axis=1, inplace=True)
+
+    train_x_lgb['dollar_taxvalue_total_dollar_tax_ratio'] = train_x_inp['dollar_taxvalue_total'] / train_x_inp['dollar_tax']
+    train_x_inp['dollar_taxvalue_total_dollar_tax_ratio'] = train_x_inp['dollar_taxvalue_total'] / train_x_inp['dollar_tax']
+    new_num_features.append('dollar_taxvalue_total_dollar_tax_ratio')
+    fe_cv(train_x_lgb, 'dollar_taxvalue_total_dollar_tax_ratio')
+    train_x_lgb.drop('dollar_taxvalue_total_dollar_tax_ratio', axis=1, inplace=True)
+
+    train_x_lgb['living_area_proportion'] = train_x_inp['area_living_type_12'] / train_x_inp['area_lot']
+    train_x_inp['living_area_proportion'] = train_x_inp['area_living_type_12'] / train_x_inp['area_lot']
+    new_num_features.append('living_area_proportion')
+    fe_cv(train_x_lgb, 'living_area_proportion')
+    train_x_lgb.drop('living_area_proportion', axis=1, inplace=True)
+
+    # per_square variables
+    for v in num_vars:
+        for a in areas:
+            col_name = v + '__per__' + a
+            train_x_lgb[col_name] = train_x_inp[v] / train_x_inp[a]
+            train_x_inp[col_name] = train_x_inp[v] / train_x_inp[a]
+            new_num_features.append(col_name)
+            train_x_lgb.loc[np.abs(train_x_inp[a]) < 1e-5, col_name] = np.nan
+            fe_cv(train_x_lgb, col_name)
+            train_x_lgb.drop(col_name, axis=1, inplace=True)
+
+    # groupby features
+    num_features = new_num_features + NUM_VARS
+    # num_features = NUM_VARS
+    for cat_var in CAT_VARS:
+        for num_var in num_features:
+            for op_type in ('neu', 'absneu', 'mean'):
+                col_name = groupby_feature_gen_single(num_var, cat_var, train_x_lgb, train_x_inp, op_type)
+                fe_cv(train_x_lgb, col_name)
+                train_x_lgb.drop(col_name, axis=1, inplace=True)
+
+
+def feature_engineering3_combined(prop_2016, prop_2017):
+
+    features = list(feature_info.index)
+
+    f_name = 'fe_%s.txt' % label
+
+    def write_to_file(out_str):
+        f = open(f_name, 'a')
+        f.write(out_str)
+        f.close()
+
+    def construct_train_data(model_name):
+
+        pass
+
+    def fe_cv(data, col_name, model_name):
+        params = params_base.copy()
+        if model_name == 'clf':
+            params.update(params_clf)
+            params.update(params_clf_sign_error)
+        else:
+            params.update(params_reg)
+            if 'raw_lgb' in model_name:
+                params.update(params_reg_naive)
+            elif 'sign_pos' in model_name:
+                params.update(params_reg_sign_error_pos)
+            elif 'sign_neg' in model_name:
+                params.update(params_reg_sign_error_neg)
+            else:
+                raise Exception('unexpected run type')
+
         gbm = train_lgb(data, train_y)
         feature_sorted, avg_rank_sorted = feature_importance(gbm, print_to_scr=False)
         col_rank = avg_rank_sorted[list(feature_sorted).index(col_name)]
