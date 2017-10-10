@@ -44,27 +44,32 @@ def param_search_batch():
     z.search_lgb_random(train_x_local, train_y_local, params_reg, 'sign_error_neg', n_iter)
 
     # --------------------------------BO search------------------------------
-    # raw lgb
-    z.search_lgb_bo(train_x_lgb, train_y, params_reg, 'raw_lgb', n_iter)
+    # # raw lgb
+    # z.search_lgb_bo(train_x_lgb, train_y, params_reg, 'raw_lgb', n_iter)
+    #
+    # # clf
+    # train_y_local = np.zeros(train_y.shape)
+    # train_y_local[train_y > 0] = 1
+    # z.search_lgb_bo(train_x_lgb, train_y_local, params_clf, 'sign_error_clf', n_iter, do_clf=True)
+    #
+    # # pos error
+    # mark_idx = train_y > 0
+    # train_x_local = train_x_lgb.loc[train_x_lgb.index[mark_idx], :]
+    # train_y_local = train_y.loc[mark_idx]
+    # z.search_lgb_bo(train_x_local, train_y_local, params_reg, 'sign_error_pos', n_iter)
+    #
+    # # neg error
+    # mark_idx = train_y < 0
+    # train_x_local = train_x_lgb.loc[train_x_lgb.index[mark_idx], :]
+    # train_y_local = train_y.loc[mark_idx]
+    # z.search_lgb_bo(train_x_local, train_y_local, params_reg, 'sign_error_neg', n_iter)
 
-    # clf
-    train_y_local = np.zeros(train_y.shape)
-    train_y_local[train_y > 0] = 1
-    z.search_lgb_bo(train_x_lgb, train_y_local, params_clf, 'sign_error_clf', n_iter, do_clf=True)
 
-    # pos error
-    mark_idx = train_y > 0
-    train_x_local = train_x_lgb.loc[train_x_lgb.index[mark_idx], :]
-    train_y_local = train_y.loc[mark_idx]
-    z.search_lgb_bo(train_x_local, train_y_local, params_reg, 'sign_error_pos', n_iter)
-
-    # neg error
-    mark_idx = train_y < 0
-    train_x_local = train_x_lgb.loc[train_x_lgb.index[mark_idx], :]
-    train_y_local = train_y.loc[mark_idx]
-    z.search_lgb_bo(train_x_local, train_y_local, params_reg, 'sign_error_neg', n_iter)
+def fe3():
+    z.feature_engineering3_combined()
 
 
 if __name__ == '__main__':
-    param_search_batch()
+    # param_search_batch()
+    fe3()
 
