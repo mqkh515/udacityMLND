@@ -20,8 +20,41 @@ import seaborn as sns
 import params_cache as p
 import data_cache
 
+import pickle as pkl
+
 prop_2016 = data_cache.prop_2016
 prop_2017 = data_cache.prop_2017
+train_x = data_cache.train_x
+train_y = data_cache.train_y
+
+
+def load_train_data_year(year):
+    idx = (train_x['data_year'] == year).values
+    x_year = train_x.loc[train_x.index[idx], :].copy()
+    y_year = train_y[idx]
+    return x_year, y_year
+
+
+train_2017_x, train_2017_y = load_train_data_year(2017)
+train_2016_x, train_2016_y = load_train_data_year(2016)
+
+
+def load_train_data_2016(new_features=tuple()):
+    for f in new_features:
+        # group-by performed separately on 2016 and 2017 data
+        feature_factory(f, prop_2016)
+
+    train_2016 = pd.read_csv('data/train_2016_v2.csv')
+    train = pd.merge(train_2016, prop_2016, how='left', on='parcelid')
+
+    train['sale_month'] = train['transactiondate'].apply(lambda x: x.split('-')[1])  # get error data transaction date to month
+    train_y = train['logerror']
+    train_x = train.drop('logerror', axis=1)
+    return train_x, train_y
+
+
+# train_2016_x, train_2016_y = load_train_data_2016()
+
 
 from bayes_opt import BayesianOptimization
 pd.set_option('display.max_columns', 20)
@@ -209,6 +242,13 @@ params_fe = {
 }
 
 
+def rm_outlier(x, y):
+    idx = np.logical_and(y < 0.7566, y > -0.4865)
+    x = x.loc[x.index[idx], :]
+    y = y[idx]
+    return x, y
+
+
 def get_params(details, run_type):
     params = params_base.copy()
     if run_type == 'clf':
@@ -239,7 +279,8 @@ def cv_mean_model(train_y):
         else:
             train_data = np.r_[y[: fold_size * n], y[fold_size * (n + 1):]]
             test_data = y[fold_size * n: fold_size * (n + 1)]
-        estimate = np.mean(train_data)
+        # estimate = np.mean(train_data)
+        estimate = np.median(train_data)
         evals[n] = np.mean(np.abs(test_data - estimate))
     return np.mean(evals)
 
@@ -409,6 +450,8 @@ def lgb_raw_2y_blend_adj_mean_cv(train_x, train_y, test_x):
 def lgb_2layer_2y_cv(train_x, train_y, test_x):
     train_x = pd.concat([train_x, train_2017_x], axis=0)
     train_y = pd.concat([train_y, train_2017_y])
+    train_x.index = list(range(train_x.shape[0]))
+    train_y.index = train_x.index.copy()
     train_x_lgb = lgb_data_prep(train_x)
     test_x_lgb = lgb_data_prep(test_x)
 
@@ -1031,15 +1074,33 @@ def load_prop_data():
     property_cleaning_v2(prop_2016)
     property_cleaning_v2(prop_2017)
 
+    n_row_prop_2016 = prop_2016.shape[0]
+    n_row_prop_2017 = prop_2017.shape[0]
+    prop_join = pd.concat([prop_2016, prop_2017], axis=0)
+
+    prep_for_lgb_single(prop_join)
+    prop_2016 = prop_join.iloc[list(range(n_row_prop_2016)), :]
+    prop_2017 = prop_join.iloc[list(range(n_row_prop_2016, n_row_prop_2016 + n_row_prop_2017)), :]
+
     return prop_2016, prop_2017
 
 
-def load_train_data(prop_2016, prop_2017, new_features=tuple()):
+def load_train_data(prop_2016, prop_2017, features=()):
     """if engineered features exists, it should be performed at prop_data level, and then join to error data"""
-    for f in new_features:
-        # group-by performed separately on 2016 and 2017 data
+
+    for f in features:
         feature_factory(f, prop_2016)
         feature_factory(f, prop_2017)
+
+    col_diff_dollar_taxvalue_total = prop_2017['dollar_taxvalue_total'] / prop_2016['dollar_taxvalue_total']
+    prop_2016['2y_diff_dollar_taxvalue_total'] = col_diff_dollar_taxvalue_total
+    prop_2017['2y_diff_dollar_taxvalue_total'] = col_diff_dollar_taxvalue_total
+    col_diff_dollar_taxvalue_land = prop_2017['dollar_taxvalue_land'] / prop_2016['dollar_taxvalue_land']
+    prop_2016['2y_diff_dollar_taxvalue_land'] = col_diff_dollar_taxvalue_land
+    prop_2017['2y_diff_dollar_taxvalue_land'] = col_diff_dollar_taxvalue_land
+    col_diff_dollar_taxvalue_structure = prop_2017['dollar_taxvalue_structure'] / prop_2016['dollar_taxvalue_structure']
+    prop_2016['2y_diff_dollar_taxvalue_structure'] = col_diff_dollar_taxvalue_structure
+    prop_2017['2y_diff_dollar_taxvalue_structure'] = col_diff_dollar_taxvalue_structure
 
     train_2016 = pd.read_csv('data/train_2016_v2.csv')
     train_2017 = pd.read_csv('data/train_2017.csv')
@@ -1052,43 +1113,12 @@ def load_train_data(prop_2016, prop_2017, new_features=tuple()):
     train = pd.concat([train_2016, train_2017], axis=0)
     train.index = list(range(train.shape[0]))
     train['sale_month'] = train['transactiondate'].apply(lambda x: x.split('-')[1])  # get error data transaction date to month
+    basedate = pd.to_datetime('2015-11-15').toordinal()
+    train['cos_season'] = ((pd.to_datetime(train['transactiondate']).apply(lambda x: x.toordinal() - basedate)) * (2 * np.pi / 365.25)).apply(np.cos)
+    train['sin_season'] = ((pd.to_datetime(train['transactiondate']).apply(lambda x: x.toordinal() - basedate)) * (2 * np.pi / 365.25)).apply(np.sin)
     train_y = train['logerror']
     train_x = train.drop('logerror', axis=1)
     return train_x, train_y
-
-
-def load_train_data_2017(new_features=tuple()):
-    for f in new_features:
-        # group-by performed separately on 2016 and 2017 data
-        feature_factory(f, prop_2017)
-
-    train_2017 = pd.read_csv('data/train_2017.csv')
-    train = pd.merge(train_2017, prop_2017, how='left', on='parcelid')
-
-    train['sale_month'] = train['transactiondate'].apply(lambda x: x.split('-')[1])  # get error data transaction date to month
-    train_y = train['logerror']
-    train_x = train.drop('logerror', axis=1)
-    return train_x, train_y
-
-
-train_2017_x, train_2017_y = load_train_data_2017()
-
-
-def load_train_data_2016(new_features=tuple()):
-    for f in new_features:
-        # group-by performed separately on 2016 and 2017 data
-        feature_factory(f, prop_2016)
-
-    train_2016 = pd.read_csv('data/train_2016_v2.csv')
-    train = pd.merge(train_2016, prop_2016, how='left', on='parcelid')
-
-    train['sale_month'] = train['transactiondate'].apply(lambda x: x.split('-')[1])  # get error data transaction date to month
-    train_y = train['logerror']
-    train_x = train.drop('logerror', axis=1)
-    return train_x, train_y
-
-
-train_2016_x, train_2016_y = load_train_data_2016()
 
 
 def prop_compare(prop_2016, prop_2017):
@@ -1361,7 +1391,7 @@ def cv_lgb_final(train_x, train_y, params_inp):
     lgb_train = lgb.Dataset(train_x, train_y)
     params = params_inp.copy()
     num_boost_round = params.pop('num_boosting_rounds')
-    eval_hist = lgb.cv(params, lgb_train, num_boost_round=num_boost_round, early_stopping_rounds=30)
+    eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=num_boost_round, early_stopping_rounds=30)
     return eval_hist['l1-mean'][-1], eval_hist['l1-stdv'][-1]
 
 
@@ -1465,7 +1495,7 @@ def search_lgb_bo(train_x, train_y, params, label='', n_iter=80,
                        'min_data_in_leaf': min_data_in_leaf,
                        'learning_rate': learning_rate,})
 
-        eval_hist = lgb.cv(params, lgb_train, num_boost_round=3000, early_stopping_rounds=30)
+        eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=3000, early_stopping_rounds=30)
         if do_clf:
             return eval_hist['auc-mean'][-1]
         else:
@@ -1498,12 +1528,23 @@ def search_lgb_bo(train_x, train_y, params, label='', n_iter=80,
 
 def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
                       min_data_in_leaf_range=(200, 800),
-                      num_leaf_range=(30, 80)):
+                      num_leaf_range=(30, 80),
+                      with_outlier=False):
     lgb_train = lgb.Dataset(train_x, train_y)
     if 'num_boosting_rounds' in params:
         params.pop('num_boosting_rounds')
 
     metric = list(params['metric'])[0]
+    if with_outlier:
+        train_x_outlier_rm, train_y_outlier_rm = rm_outlier(train_x, train_y)
+        lgb_train_outlier = lgb.Dataset(train_x_outlier_rm, train_y_outlier_rm)
+        columns = ['%s-mean' % metric, '%s-stdv' % metric, '%s-mean_outlier_rm' % metric, '%s-stdv' % metric, 'num_leaves', 'min_data_in_leaf', 'learning_rate',
+                   # 'lambda_l2'
+                   ]
+    else:
+        columns = ['%s-mean' % metric, '%s-stdv' % metric, 'num_leaves', 'min_data_in_leaf', 'learning_rate',
+        # 'lambda_l2'
+        ]
 
     def rand_min_data_in_leaf():
         return np.random.randint(min_data_in_leaf_range[0], min_data_in_leaf_range[1])
@@ -1525,18 +1566,29 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
                        # 'lambda_l2': 0.1 ** rand_lambda_l2()
                        }
         params.update(rand_params)
-        eval_hist = lgb.cv(params, lgb_train, num_boost_round=3000, early_stopping_rounds=30)
-        res.append([eval_hist['%s-mean' % metric][-1],
-                    eval_hist['%s-stdv' % metric][-1],
-                    rand_params['num_leaves'],
-                    rand_params['min_data_in_leaf'],
-                    rand_params['learning_rate'],
-                    # rand_params['lambda_l2']
-                    ])
+        eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=3000, early_stopping_rounds=30)
+        if with_outlier:
+            eval_hist_outlier_rm = lgb.cv(params, lgb_train_outlier, stratified=False, num_boost_round=3000, early_stopping_rounds=30)
+            res.append([eval_hist['%s-mean' % metric][-1],
+                        eval_hist['%s-stdv' % metric][-1],
+                        eval_hist_outlier_rm['%s-mean' % metric][-1],
+                        eval_hist_outlier_rm['%s-stdv' % metric][-1],
+                        rand_params['num_leaves'],
+                        rand_params['min_data_in_leaf'],
+                        rand_params['learning_rate'],
+                        # rand_params['lambda_l2']
+                        ])
+        else:
+            res.append([eval_hist['%s-mean' % metric][-1],
+                        eval_hist['%s-stdv' % metric][-1],
+                        rand_params['num_leaves'],
+                        rand_params['min_data_in_leaf'],
+                        rand_params['learning_rate'],
+                        # rand_params['lambda_l2']
+                        ])
+
         print('finished %d / %d' % (i, n_iter))
-    res_df = pd.DataFrame(res, columns=['%s-mean' % metric, '%s-stdv' % metric, 'num_leaves', 'min_data_in_leaf', 'learning_rate',
-                                        # 'lambda_l2'
-                                        ])
+    res_df = pd.DataFrame(res, columns=columns)
     res_df.to_csv('temp_cv_res_random_%s.csv' % label, index=False)
 
 
@@ -1573,7 +1625,7 @@ def search_lgb_grid(train_x, train_y):
                         'learning_rate': learning_rate,
                         'lambda_l2': lambda_l2
                     }
-                    eval_hist = lgb.cv(params, lgb_train, num_boost_round=3000, early_stopping_rounds=30)
+                    eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=3000, early_stopping_rounds=30)
                     res.append([eval_hist['l1-mean'][-1],
                                 num_leaf,
                                 min_data_in_leaf,
@@ -1649,13 +1701,16 @@ def pred_nosea_2step():
 #             'num_garage', 'num_room', 'num_unit', 'num_story']
 
 
-# CAT_VARS = ['str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
-#             'raw_block', 'raw_census', 'block', 'census',
-#             'num_bedroom', 'rank_building_quality', 'num_room', 'num_unit']
+NUM_VARS = ['area_lot', 'area_living_type_12', 'dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total',
+            'area_garage', 'area_pool']
 
-NUM_VARS = ['area_living_type_12']
+CAT_VARS = ['str_zoning_desc', 'code_city', 'code_neighborhood', 'code_zip',
+            'raw_block', 'raw_census', 'block', 'census',
+            'num_bedroom', 'rank_building_quality', 'num_room', 'num_unit']
 
-CAT_VARS = ['num_unit']
+# NUM_VARS = ['area_living_type_12']
+#
+# CAT_VARS = ['num_unit']
 
 
 def new_feature_base_all(train_x_inp, test_x_inp):
@@ -2003,64 +2058,74 @@ def feature_engineering3(train_x_inp, train_y, params, label):
 
 def feature_engineering3_combined():
     """group by features should be engineered from prop data"""
-    f_name = 'fe_2y_raw_lgb.txt'
+    f_name = 'fe_2y_raw_lgb_rank.txt'
     params = get_params(p.raw_lgb_2y_2, 'reg')
+
+    f_file = open(f_name, 'r')
+    lines = f_file.read().split('\n')
+    cols = [l.split(',')[0] for l in lines]
 
     def write_to_file(out_str):
         f = open(f_name, 'a')
         f.write(out_str)
         f.close()
 
-    def cv(col):
-        feature_factory(col, prop_2016)
-        feature_factory(col, prop_2017)
+    def cv(col, keep_col=False):
+        if col in cols:
+            return
+        print('processing: %s' % col)
+        keep_num_var = True if '__groupby__' in col else False
+        feature_factory(col, prop_2016, keep_num_var)
+        feature_factory(col, prop_2017, keep_num_var)
         train_x, train_y = load_train_data(prop_2016, prop_2017)
         train_x_lgb = lgb_data_prep(train_x, (col,))
+        print('train_x shape: %s' % str(train_x_lgb.shape))
 
         gbm = train_lgb(train_x_lgb, train_y, params)
         feature_sorted, avg_rank_sorted = feature_importance(gbm, print_to_scr=False)
         col_rank = avg_rank_sorted[list(feature_sorted).index(col)]
-        cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
-        write_to_file('%s,%.7f,%.7f,%.1f\n' % (col, cv_mean, cv_stdv, col_rank))
+        # cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
+        # write_to_file('%s,%.7f,%.7f,%.1f\n' % (col, cv_mean, cv_stdv, col_rank))
+        write_to_file('%s,%.7f,%.7f,%.1f\n' % (col, 0.0, 0.0, col_rank))
 
-        # prop_2016.drop(col, axis=1, inplace=True)
-        # prop_2017.drop(col, axis=1, inplace=True)
-
+        if not keep_col:
+            prop_2016.drop(col, axis=1, inplace=True)
+            prop_2017.drop(col, axis=1, inplace=True)
 
     write_to_file('col,score_mean,score_stdv,avg_rank\n')
 
-    # # raw lgb
-    # train_x, train_y = load_train_data(prop_2016, prop_2017)
-    # train_x_lgb = lgb_data_prep(train_x)
-    # cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
-    # write_to_file('%s,%.7f,%.7f,%.1f\n' % ('None', cv_mean, cv_stdv, 0))
-    #
-    # new_num_features = []
-    #
-    # # try each of the engineered features
-    # # areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_type_12', 'area_living_type_15')
-    # # num_vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
+    # raw lgb
+    train_x, train_y = load_train_data(prop_2016, prop_2017)
+    train_x_lgb = lgb_data_prep(train_x)
+    cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
+    write_to_file('%s,%.7f,%.7f,%.1f\n' % ('None', cv_mean, cv_stdv, 0))
+
+    new_num_features = []
+
+    # try each of the engineered features
+    areas = ('area_lot', 'area_garage', 'area_pool', 'area_living_type_12', 'area_living_type_15')
+    num_vars = ('dollar_tax', 'dollar_taxvalue_structure', 'dollar_taxvalue_land', 'dollar_taxvalue_total')
     # areas = ('area_lot',)
     # num_vars = ('dollar_tax',)
-    #
-    # for feature in ['dollar_taxvalue_structure_land_diff_norm',
-    #                 'dollar_taxvalue_structure_land_absdiff_norm',
-    #                 'dollar_taxvalue_structure_total_ratio',
-    #                 'dollar_taxvalue_total_dollar_tax_ratio',
-    #                 'living_area_proportion']:
-    #     new_num_features.append(feature)
-    #     cv(feature)
-    #
-    # # per_square variables
-    # for v in num_vars:
-    #     for a in areas:
-    #         col_name = v + '__per__' + a
-    #         new_num_features.append(col_name)
-    #         cv(col_name)
+
+    for feature in ['dollar_taxvalue_structure_land_diff_norm',
+                    'dollar_taxvalue_structure_land_absdiff_norm',
+                    'dollar_taxvalue_structure_total_ratio',
+                    'dollar_taxvalue_total_dollar_tax_ratio',
+                    'living_area_proportion']:
+        new_num_features.append(feature)
+        cv(feature, True)
+
+    # per_square variables
+    for v in num_vars:
+        for a in areas:
+            col_name = v + '__per__' + a
+            new_num_features.append(col_name)
+            cv(col_name)
 
     # groupby features
-    # num_features = new_num_features + NUM_VARS
-    num_features = NUM_VARS
+    num_features = new_num_features + NUM_VARS
+    # num_features = NUM_VARS
     for cat_var in CAT_VARS:
         for num_var in num_features:
             for op_type in ('mean', 'neu', 'absneu'):
@@ -2069,7 +2134,7 @@ def feature_engineering3_combined():
             if cat_var == CAT_VARS[0] and num_var in num_features[0]:
                 # only do count for one of them
                 col_name = num_var + '__groupby__' + cat_var + '__count'
-                cv(col_name)
+                cv(col_name, True)
 
 
 def param_search_fe(test_x_inp, train_x_inp, train_y, fe_label):
@@ -2179,7 +2244,7 @@ def load_feature_list(label):
     return features
 
 
-def feature_factory(col, data):
+def feature_factory(col, data, keep_num_var=False):
     """add col to data, generated from raw data columns"""
 
     if col == 'dollar_taxvalue_structure_land_diff':
@@ -2217,7 +2282,10 @@ def feature_factory(col, data):
             feature_factory(num_var, data)
         _ = groupby_feature_gen_single(num_var, cat_var, data, data, op_type)
         if not num_var_in_raw_data:
-            data.drop(num_var, axis=1, inplace=True)
+            if not keep_num_var:
+                data.drop(num_var, axis=1, inplace=True)
+            else:
+                print('num var kept: %s' % num_var)
 
 
 # -------------------------------------------------------------- 2layer ------------------------------------------------------------
@@ -2445,17 +2513,22 @@ def cv_2layer(train_x, train_y, op_type, class_type):
             train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
 
 
-def sale_month_test(with_month=False):
+def sale_month_test(month_set={'10', '11', '12'}, with_month=False):
     x_raw, y = load_train_data(prop_2016, prop_2017)
-    new_features = ('sale_month',) if with_month else tuple()
-    x = lgb_data_prep(x_raw, new_features)
+    x = lgb_data_prep(x_raw)
+    if with_month:
+        # x['cos_season'] = x_raw['cos_season']
+        # x['sin_season'] = x_raw['sin_season']
+        x['sale_month'] = x_raw['sale_month'].apply(lambda x: int(x))
+        x['sale_month'] = x['sale_month'].astype('category')
 
-    idx = x_raw['sale_month'].apply(lambda x: x in {'10', '11', '12'})
-    q4_idx = x.index[idx]
+    idx = x_raw['sale_month'].apply(lambda x: x in month_set)
+    print('n_sample for the month: %d' % int(np.sum(idx)))
+    q4_idx = x.index[idx].values
     np.random.shuffle(q4_idx)
     split_n_q4 = int(q4_idx.shape[0] / 2)
-    idx_train = np.r_[x.index[~idx].values, q4_idx.values[:split_n_q4]]
-    idx_test = q4_idx.values[split_n_q4:]
+    idx_train = np.r_[x.index[~idx].values, q4_idx[:split_n_q4]]
+    idx_test = q4_idx[split_n_q4:]
 
     train_x = x.loc[idx_train, :]
     train_y = y[idx_train]
@@ -2467,7 +2540,153 @@ def sale_month_test(with_month=False):
     pred_y_is = lgb_raw_2y_blend_pred(train_x, train_y, train_x)
 
     print('IS predict miss median: %.7f' % (train_y - pred_y_is).median())
+    print('IS predict miss median on month: %.7f' % (train_y[q4_idx[:split_n_q4]] - pred_y_is[q4_idx[:split_n_q4]]).median())
     print('OS predict miss median: %.7f' % (test_y - pred_y).median())
+
+
+def sale_month_test_by_year(month_set={'01'}):
+    """See the relationship between 2016 mis-predict and 2017 mis-predict"""
+    x_raw, y = load_train_data(prop_2016, prop_2017)
+    x = lgb_data_prep(x_raw)
+
+    idx = x_raw['sale_month'].apply(lambda x: x in month_set)
+    idx_2016 = np.logical_and(idx, x_raw['data_year'] == 2016)
+    idx_2017 = np.logical_and(idx, x_raw['data_year'] == 2017)
+
+    pred_mon_2016 = pred_raw_lgb_blend(x.loc[x.index[idx_2016], :])
+    pred_mon_2017 = pred_raw_lgb_blend(x.loc[x.index[idx_2017], :])
+
+    print('predict miss median 2016: %.7f' % (y[idx_2016] - pred_mon_2016).median())
+    print('predict miss median 2017: %.7f' % (y[idx_2017] - pred_mon_2017).median())
+
+
+def train_lgb_with_val_one_month(mon, year):
+    x_raw, y = load_train_data(prop_2016, prop_2017)
+    x = lgb_data_prep(x_raw)
+
+    idx = np.logical_and(x_raw['sale_month'].apply(lambda x: x == mon), x_raw['data_year'] == year)
+    pred_raw = pred_raw_lgb_blend(x.loc[x.index[idx], :])
+    error = y[idx] - pred_raw
+
+    train_lgb_with_val(x.loc[x.index[idx], :], error, get_params(p.lgb_month_3, 'reg'))
+
+
+def month_sample_count():
+    x_raw, y = load_train_data(prop_2016, prop_2017)
+    sale_month = x_raw['sale_month']
+    data_year = x_raw['data_year']
+    for month in sorted(list(sale_month.unique())):
+        for year in sorted(list(data_year.unique())):
+            idx = np.logical_and(sale_month == month, data_year == year)
+            print('n sample for month %s, year %d: %d' % (month, year, int(np.sum(idx))))
+
+
+def train_mon_2step(mon_set):
+    """first train with whole data.
+       then train with 2016 month data on errors of that month set and predict for 2017"""
+    x = lgb_data_prep(train_x)
+
+    idx_2016 = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), train_x['data_year'] == 2016)
+    idx_2017 = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), train_x['data_year'] == 2017)
+
+    raw_pred_2016 = pred_raw_lgb_blend(x.loc[x.index[idx_2016], :])
+    raw_pred_2017 = pred_raw_lgb_blend(x.loc[x.index[idx_2017], :])
+
+    error_2016 = y[idx_2016] - raw_pred_2016
+    # train on 2016 error and predict for 2017 error
+    error_gbm = train_lgb(x.loc[x.index[idx_2016], :], error_2016, get_params(p.lgb_month, 'reg'))
+    error_2016_pred = error_gbm.predict(x.loc[x.index[idx_2016], :])
+    error_2017_pred = error_gbm.predict(x.loc[x.index[idx_2017], :])
+    error_2017 = y[idx_2017] - (raw_pred_2017 + error_2017_pred)
+
+    print('IS(2016) predict miss median: %.7f' % (error_2016 - error_2016_pred).median())
+    print('OS(2017) predict miss median: %.7f' % error_2017.median())
+
+
+def pred_train_mon_2step(rm_outlier_flag=False):
+    mon_set = {'10', '11', '12'}
+    x_raw, y = load_train_data(prop_2016, prop_2017)
+    if rm_outlier_flag:
+        x_raw, y = rm_outlier(x_raw, y)
+
+    x = lgb_data_prep(x_raw)
+    prop_2016_lgb = lgb_data_prep(prop_2016)
+    idx = x_raw['sale_month'].apply(lambda x: x in mon_set).values
+    raw_pred_train = pred_raw_lgb_blend(x.loc[x.index[idx], :])
+    error_train = y[idx] - raw_pred_train
+    error_gbm = train_lgb(x.loc[x.index[idx]], error_train, get_params(p.lgb_month, 'reg'))
+
+    raw_pred_submit = pred_raw_lgb_blend(prop_2016_lgb)
+    error_pred_submit = error_gbm.predict(prop_2016_lgb)
+
+    return raw_pred_submit + error_pred_submit
+
+
+def pred_2016_to_2017():
+    mon_sets = ({'01'}, {'02'}, {'03'}, {'04'}, {'05'}, {'06'}, {'07'}, {'08'}, {'09'})
+    x = lgb_data_prep(train_x)
+    idx_2016 = (train_x['data_year'] == 2016).values
+    idx_2017 = (train_x['data_year'] == 2017).values
+    # get all year_error data
+    raw_pred = pred_raw_lgb_blend(x)
+    raw_pred = pd.Series(raw_pred, index=x.index)
+
+    # train_test_split
+    train_2017_error_idx, val_2017_error_idx = train_test_split(train_x.index[idx_2017].values, stratify=train_x.loc[train_x.index[idx_2017], 'sale_month'], test_size=0.3, random_state=42)
+
+    pred_year = pd.Series(np.zeros(np.sum(idx_2017)), index=train_x.index[idx_2017])  # error after month training for 2017
+    for mon_set in mon_sets:
+        print('processing month set: %s' % str(mon_set))
+        idx_2016_month = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), idx_2016)
+        idx_2017_month = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), idx_2017)
+        error_2016 = train_y[idx_2016_month] - raw_pred[idx_2016_month]
+        error_gbm = train_lgb(x.loc[x.index[idx_2016_month], :], error_2016, get_params(p.lgb_month_1, 'reg'))
+        print('before month train error median: %.7f' % np.median(train_y[idx_2017_month] - raw_pred[idx_2017_month]))
+        error_2017_pred = error_gbm.predict(x.loc[x.index[idx_2017_month], :])
+        pred_year_2017_month = raw_pred[idx_2017_month] + error_2017_pred
+        print('after month train error median: %.7f' % np.median(train_y[idx_2017_month] - pred_year_2017_month))
+        # validation set error median after month train
+        val_idx_month = val_2017_error_idx[train_x.loc[val_2017_error_idx, 'sale_month'].apply(lambda x: x in mon_set)]
+        print('after month train validation error median: %.7f' % np.median(train_y[val_idx_month] - pred_year_2017_month[val_idx_month]))
+        pred_year[idx_2017_month] = pred_year_2017_month
+
+    error_year = train_2017_y - pred_year
+    pkl.dump(error_year, open('error_after_month_train_2017.pkl', 'wb'))
+
+
+
+def train_mon_2step_batch_run():
+    for mon_set in ({'01'}, {'02'}, {'03'}, {'04'}, {'05'}, {'06'}, {'07'}, {'08'}, {'09'}):
+        train_mon_2step(mon_set)
+
+
+def pred_raw_lgb_blend(test_x):
+    gbms = pkl.load(open('raw_lgb_blending.pkl', 'rb'))
+    raw_pred = []
+    for gbm in gbms:
+        raw_pred.append(gbm.predict(test_x))
+    return np.array(raw_pred).mean(axis=0)
+
+
+# def pred_fe3_lgb_blend(test_x):
+#     gbms = pkl.load(open('fe3_lgb_blending.pkl', 'rb'))
+#     raw_pred = []
+#     for gbm in gbms:
+#         raw_pred.append(gbm.predict(test_x))
+#     return np.array(raw_pred).mean(axis=0)
+#
+#
+# def pred_fe3_lgb_blend_submit(prop_data):
+#     new_features = load_feature_list('2y_raw_lgb')
+#     for f in new_features:
+#         if f not in prop_data.columns:
+#             feature_factory(f, prop_data)
+#     prop_data_use = lgb_data_prep(prop_data, new_features)
+#     gbms = pkl.load(open('fe3_lgb_blending.pkl', 'rb'))
+#     raw_pred = []
+#     for gbm in gbms:
+#         raw_pred.append(gbm.predict(prop_data_use))
+#     return np.array(raw_pred).mean(axis=0)
 
 
 # def model_2layer(train_x, train_y, test_x):

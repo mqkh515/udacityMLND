@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+import pickle as pkl
 
 feature_info = pd.read_csv('data/feature_info.csv', index_col='new_name')
 nmap_orig_to_new =  dict(zip(feature_info['orig_name'].values, feature_info.index.values))
@@ -168,4 +168,10 @@ def load_prop_data():
     return prop_2016, prop_2017
 
 
-prop_2016, prop_2017 = load_prop_data()
+# prop_2016, prop_2017 = load_prop_data()
+
+prop_2016 = pkl.load(open('prop_2016_cache.pkl', 'rb'))
+prop_2017 = pkl.load(open('prop_2017_cache.pkl', 'rb'))
+
+train_x = pkl.load(open('train_x_all.pkl', 'rb'))
+train_y = pkl.load(open('train_y_all.pkl', 'rb'))

@@ -13,8 +13,45 @@ raw_lgb_2y_3 = {'num_leaves': 60,
                 'learning_rate': 0.008397,
                 'num_boosting_rounds': 1600}
 
-
 raw_lgb_2y = [raw_lgb_2y_1, raw_lgb_2y_2, raw_lgb_2y_3]
+
+
+# with fe3
+# raw_lgb_2y_1 = {'num_leaves': 70,
+#                 'min_data_in_leaf': 276,
+#                 'learning_rate': 0.013404,
+#                 'num_boosting_rounds': 950}
+#
+# raw_lgb_2y_2 = {'num_leaves': 49,
+#                 'min_data_in_leaf': 279,
+#                 'learning_rate': 0.009982,
+#                 'num_boosting_rounds': 1500}
+#
+# raw_lgb_2y_3 = {'num_leaves': 76,
+#                 'min_data_in_leaf': 256,
+#                 'learning_rate': 0.014353,
+#                 'num_boosting_rounds': 800}
+
+
+lgb_month_1 = {'num_leaves': 5,
+             'min_data_in_leaf': 68,
+             'learning_rate': 0.002832,
+             'num_boosting_rounds': 800}
+
+
+lgb_month_2 = {'num_leaves': 6,
+                'min_data_in_leaf': 78,
+                'learning_rate': 0.002245,
+                'num_boosting_rounds': 1000}
+
+
+lgb_month_3 = {'num_leaves': 5,
+                'min_data_in_leaf': 35,
+                'learning_rate': 0.018284,
+                'num_boosting_rounds': 200}
+
+
+lgb_month = [lgb_month_1, lgb_month_2, lgb_month_3]
 
 
 sign_clf_2y_1 = {'num_leaves': 78,
