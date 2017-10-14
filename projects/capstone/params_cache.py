@@ -53,6 +53,8 @@ lgb_month_3 = {'num_leaves': 5,
 
 lgb_month = [lgb_month_1, lgb_month_2, lgb_month_3]
 
+p.lgb_month_mon10 = []
+
 
 sign_clf_2y_1 = {'num_leaves': 78,
                  'min_data_in_leaf': 285,

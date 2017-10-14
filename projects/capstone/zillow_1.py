@@ -249,6 +249,12 @@ def rm_outlier(x, y):
     return x, y
 
 
+def capfloor_outlier(x, y):
+    y[y > 0.7566] = 0.7566
+    y[y < -0.4865] = -0.4865
+    return x, y
+
+
 def get_params(details, run_type):
     params = params_base.copy()
     if run_type == 'clf':
@@ -1229,7 +1235,7 @@ def convert_cat_col_single(data, col):
     data[col_new] = data[col_new].astype('category')
 
 
-def lgb_data_prep(data, new_features=tuple()):
+def lgb_data_prep(data, new_features=tuple(), rm_features=tuple()):
     keep_feature = list(feature_info.index.values)
     feature_info_copy = keep_feature.copy()
 
@@ -1240,7 +1246,13 @@ def lgb_data_prep(data, new_features=tuple()):
         if col in feature_info.index and feature_info.loc[col, 'type'] == 'none' and col in keep_feature:
             keep_feature.remove(col)
 
-    keep_feature += list(new_features)
+    for f in new_features:
+        if f not in keep_feature:
+            keep_feature.append(f)
+
+    for col in rm_features:
+         if col in keep_feature:
+             keep_feature.remove(col)
 
     for col in ['num_bathroom_assessor', 'code_county', 'area_living_finished_calc', 'area_firstfloor_assessor']:
         if col in keep_feature:
@@ -2208,21 +2220,6 @@ def filter_features(features_new, features_old, features_rank, data):
     return rm_features
 
 
-def seasonality_analysis(train_x, train_y, month_col):
-    n_iter = 100
-    stack_months = []
-    stack_mean_erros = []
-    for idx in range(n_iter):
-        x, x_cv, y, y_cv = train_test_split(train_x, train_y, test_size=0.33, random_state=idx*3+1, stratify=month_col)
-        gbm = train_lgb(x, y)
-        y_pred = gbm.predict(x_cv)
-        error = y_cv - y_pred
-        error_by_month = pd.Series(error).groupby(month_col).mean()
-        stack_months += list(error_by_month.index.values)
-        stack_mean_erros += list(error_by_month.values)
-    sns.barplot(x=stack_months, y=stack_mean_erros).set_title('mean_error distribution against month')
-
-
 def dump_feature_list(features, label):
     txtf = open('feature_list_%s.txt' % label, 'w')
     s = ''
@@ -2553,8 +2550,8 @@ def sale_month_test_by_year(month_set={'01'}):
     idx_2016 = np.logical_and(idx, x_raw['data_year'] == 2016)
     idx_2017 = np.logical_and(idx, x_raw['data_year'] == 2017)
 
-    pred_mon_2016 = pred_raw_lgb_blend(x.loc[x.index[idx_2016], :])
-    pred_mon_2017 = pred_raw_lgb_blend(x.loc[x.index[idx_2017], :])
+    pred_mon_2016 = pred_lgb_blend(x.loc[x.index[idx_2016], :])
+    pred_mon_2017 = pred_lgb_blend(x.loc[x.index[idx_2017], :])
 
     print('predict miss median 2016: %.7f' % (y[idx_2016] - pred_mon_2016).median())
     print('predict miss median 2017: %.7f' % (y[idx_2017] - pred_mon_2017).median())
@@ -2565,7 +2562,7 @@ def train_lgb_with_val_one_month(mon, year):
     x = lgb_data_prep(x_raw)
 
     idx = np.logical_and(x_raw['sale_month'].apply(lambda x: x == mon), x_raw['data_year'] == year)
-    pred_raw = pred_raw_lgb_blend(x.loc[x.index[idx], :])
+    pred_raw = pred_lgb_blend(x.loc[x.index[idx], :])
     error = y[idx] - pred_raw
 
     train_lgb_with_val(x.loc[x.index[idx], :], error, get_params(p.lgb_month_3, 'reg'))
@@ -2589,8 +2586,8 @@ def train_mon_2step(mon_set):
     idx_2016 = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), train_x['data_year'] == 2016)
     idx_2017 = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), train_x['data_year'] == 2017)
 
-    raw_pred_2016 = pred_raw_lgb_blend(x.loc[x.index[idx_2016], :])
-    raw_pred_2017 = pred_raw_lgb_blend(x.loc[x.index[idx_2017], :])
+    raw_pred_2016 = pred_lgb_blend(x.loc[x.index[idx_2016], :])
+    raw_pred_2017 = pred_lgb_blend(x.loc[x.index[idx_2017], :])
 
     error_2016 = y[idx_2016] - raw_pred_2016
     # train on 2016 error and predict for 2017 error
@@ -2612,11 +2609,11 @@ def pred_train_mon_2step(rm_outlier_flag=False):
     x = lgb_data_prep(x_raw)
     prop_2016_lgb = lgb_data_prep(prop_2016)
     idx = x_raw['sale_month'].apply(lambda x: x in mon_set).values
-    raw_pred_train = pred_raw_lgb_blend(x.loc[x.index[idx], :])
+    raw_pred_train = pred_lgb_blend(x.loc[x.index[idx], :])
     error_train = y[idx] - raw_pred_train
     error_gbm = train_lgb(x.loc[x.index[idx]], error_train, get_params(p.lgb_month, 'reg'))
 
-    raw_pred_submit = pred_raw_lgb_blend(prop_2016_lgb)
+    raw_pred_submit = pred_lgb_blend(prop_2016_lgb)
     error_pred_submit = error_gbm.predict(prop_2016_lgb)
 
     return raw_pred_submit + error_pred_submit
@@ -2628,7 +2625,7 @@ def pred_2016_to_2017():
     idx_2016 = (train_x['data_year'] == 2016).values
     idx_2017 = (train_x['data_year'] == 2017).values
     # get all year_error data
-    raw_pred = pred_raw_lgb_blend(x)
+    raw_pred = pred_lgb_blend(x)
     raw_pred = pd.Series(raw_pred, index=x.index)
 
     # train_test_split
@@ -2660,8 +2657,9 @@ def train_mon_2step_batch_run():
         train_mon_2step(mon_set)
 
 
-def pred_raw_lgb_blend(test_x):
-    gbms = pkl.load(open('raw_lgb_blending.pkl', 'rb'))
+def pred_lgb_blend(test_x, gbms=None):
+    if not gbms:
+        gbms = pkl.load(open('raw_lgb_blending.pkl', 'rb'))
     raw_pred = []
     for gbm in gbms:
         raw_pred.append(gbm.predict(test_x))
