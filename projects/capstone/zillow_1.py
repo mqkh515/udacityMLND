@@ -1587,6 +1587,7 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
         columns = ['%s-mean' % metric, '%s-stdv' % metric, 'n_rounds', 'num_leaves', 'min_data_in_leaf', 'learning_rate',
         # 'lambda_l2'
         ]
+    headers = ','.join(columns)
 
     def rand_min_data_in_leaf():
         return np.random.randint(min_data_in_leaf_range[0], min_data_in_leaf_range[1])
@@ -1600,7 +1601,13 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
     def rand_lambda_l2():
         return np.random.uniform(1, 4)
 
+    def write_to_file(line):
+        f = open('temp_cv_res_random_%s.txt' % label, 'a')
+        f.write(line + '\n')
+        f.close()
+
     res = []
+    write_to_file(headers)
     for i in range(1, n_iter + 1):
         rand_params = {'num_leaves': rand_num_leaf(),
                        'min_data_in_leaf': rand_min_data_in_leaf(),
@@ -1608,10 +1615,10 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
                        # 'lambda_l2': 0.1 ** rand_lambda_l2()
                        }
         params.update(rand_params)
-        eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=6000, early_stopping_rounds=100)
+        eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=10000, early_stopping_rounds=100)
         if with_rm_outlier:
             eval_hist_outlier_rm = lgb.cv(params, lgb_train_outlier, stratified=False, num_boost_round=6000, early_stopping_rounds=100)
-            res.append([eval_hist['%s-mean' % metric][-1],
+            res_list = [eval_hist['%s-mean' % metric][-1],
                         eval_hist['%s-stdv' % metric][-1],
                         eval_hist_outlier_rm['%s-mean' % metric][-1],
                         eval_hist_outlier_rm['%s-stdv' % metric][-1],
@@ -1620,16 +1627,19 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
                         rand_params['min_data_in_leaf'],
                         rand_params['learning_rate'],
                         # rand_params['lambda_l2']
-                        ])
+                        ]
+
         else:
-            res.append([eval_hist['%s-mean' % metric][-1],
-                        eval_hist['%s-stdv' % metric][-1],
-                        len(eval_hist['%s-mean' % metric]),
-                        rand_params['num_leaves'],
-                        rand_params['min_data_in_leaf'],
-                        rand_params['learning_rate'],
-                        # rand_params['lambda_l2']
-                        ])
+            res_list = [eval_hist['%s-mean' % metric][-1],
+                         eval_hist['%s-stdv' % metric][-1],
+                         len(eval_hist['%s-mean' % metric]),
+                         rand_params['num_leaves'],
+                         rand_params['min_data_in_leaf'],
+                         rand_params['learning_rate'],
+                         # rand_params['lambda_l2']
+                         ]
+            write_to_file('%.7f,%.7f,%.0f,%.0f,%.0f,%.6f' % tuple(res_list))
+        res.append(res_list)
 
         print('finished %d / %d' % (i, n_iter))
     res_df = pd.DataFrame(res, columns=columns)
@@ -1687,21 +1697,6 @@ def submit_nosea(score, ver):
     df['ParcelId'] = submission['ParcelId']
     for col in ('201610', '201611', '201612', '201710', '201711', '201712'):
         df[col] = score
-    date_str = ''.join(str(datetime.date.today()).split('-'))
-    print(df.shape)
-    df.to_csv('data/submission_%s_v%d.csv.gz' % (date_str, ver), index=False, float_format='%.4f', compression='gzip')
-
-
-def submit_sea(col1610, col1611, col1612, ver):
-    submission = pd.read_csv('data/sample_submission.csv', header=0)
-    df = pd.DataFrame()
-    df['ParcelId'] = submission['ParcelId']
-    df['201610'] = col1610
-    df['201611'] = col1611
-    df['201612'] = col1612
-    df['201710'] = col1610
-    df['201711'] = col1611
-    df['201712'] = col1612
     date_str = ''.join(str(datetime.date.today()).split('-'))
     print(df.shape)
     df.to_csv('data/submission_%s_v%d.csv.gz' % (date_str, ver), index=False, float_format='%.4f', compression='gzip')

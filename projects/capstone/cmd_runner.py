@@ -76,7 +76,7 @@ def param_search_raw_lgb_final():
     x_raw, y = z.rm_outlier(z.train_x, z.train_y)
     x = z.lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
 
-    n_iter = 1
+    n_iter = 100
     params_reg = z.params_base.copy()
     params_reg.update(z.params_reg)
 
@@ -89,7 +89,7 @@ def param_search_batch_one_mon(label='', keep_size=None):
     x_step1 = z.lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
     x_step2 = z.lgb_data_prep(x_raw, keep_only_feature=p.step2_keep_only_feature)
 
-    n_iter = 1
+    n_iter = 100
     params = z.params_base.copy()
     params.update(z.params_reg)
 
@@ -97,14 +97,14 @@ def param_search_batch_one_mon(label='', keep_size=None):
         params.pop('num_boosting_rounds')
 
     metric = list(params['metric'])[0]
-    min_data_in_leaf_range = (20, 80)
+    min_data_in_leaf_range = (30, 100)
     num_leaf_range = (5, 20)
 
     def rand_min_data_in_leaf():
         return np.random.randint(min_data_in_leaf_range[0], min_data_in_leaf_range[1])
 
     def rand_learning_rate():
-        return np.random.uniform(1, 3)
+        return np.random.uniform(2, 3)
 
     def rand_num_leaf():
         return np.random.randint(num_leaf_range[0], num_leaf_range[1])
@@ -112,6 +112,13 @@ def param_search_batch_one_mon(label='', keep_size=None):
     def rand_lambda_l2():
         return np.random.uniform(1, 4)
 
+    def write_to_file(line):
+        f = open('temp_cv_res_random_month_%s.txt' % label, 'a')
+        f.write(line + '\n')
+        f.close()
+
+    headers = ','.join(['%s-mean' % metric, '%s-stdv' % metric, 'n_rounds-mean', 'n_rounds_stdv', 'num_leaves', 'min_data_in_leaf', 'learning_rate'])
+    write_to_file(headers)
     res = []
 
     gbms = []
@@ -150,6 +157,8 @@ def param_search_batch_one_mon(label='', keep_size=None):
         m_mean, m_stdv = np.array(cv_hist).mean(axis=0)
         n_rounds_mean = np.mean(np.array(n_rounds))
         n_rounds_stdv = np.std(np.array(n_rounds))
+        line = '%.7f,%.7f,%.0f,%.0f,%.0f,%.0f,%.6f' % (m_mean,m_stdv, n_rounds_mean, n_rounds_stdv, rand_params['num_leaves'], rand_params['min_data_in_leaf'], rand_params['learning_rate'])
+        write_to_file(line)
         res.append([m_mean,
                     m_stdv,
                     n_rounds_mean,
