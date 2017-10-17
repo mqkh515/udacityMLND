@@ -1,32 +1,55 @@
-raw_lgb_2y_1 = {'num_leaves': 77,
-                'min_data_in_leaf': 244,
-                'learning_rate': 0.005218,
+# raw_lgb_2y_1 = {'num_leaves': 53,
+#                 'min_data_in_leaf': 366,
+#                 'learning_rate': 0.002382,
+#                 'num_boosting_rounds': 10500}
+#
+# raw_lgb_2y_2 = {'num_leaves': 64,
+#                 'min_data_in_leaf': 467,
+#                 'learning_rate': 0.002088,
+#                 'num_boosting_rounds': 11000}
+#
+# raw_lgb_2y_3 = {'num_leaves': 61,
+#                 'min_data_in_leaf': 344,
+#                 'learning_rate': 0.003809,
+#                 'num_boosting_rounds': 6655}
+#
+# raw_lgb_2y_4 = {'num_leaves': 45,
+#                 'min_data_in_leaf': 297,
+#                 'learning_rate': 0.002589,
+#                 'num_boosting_rounds': 11500}
+#
+# raw_lgb_2y_5 = {'num_leaves': 73,
+#                 'min_data_in_leaf': 264,
+#                 'learning_rate': 0.0082,
+#                 'num_boosting_rounds': 2400}
+
+
+raw_lgb_2y_1 = {'num_leaves': 53,
+                'min_data_in_leaf': 366,
+                'learning_rate': 0.002382,
+                'num_boosting_rounds': 9400}
+
+raw_lgb_2y_2 = {'num_leaves': 64,
+                'min_data_in_leaf': 467,
+                'learning_rate': 0.002088,
+                'num_boosting_rounds': 9600}
+
+raw_lgb_2y_3 = {'num_leaves': 61,
+                'min_data_in_leaf': 344,
+                'learning_rate': 0.003809,
+                'num_boosting_rounds': 5800}
+
+raw_lgb_2y_4 = {'num_leaves': 45,
+                'min_data_in_leaf': 297,
+                'learning_rate': 0.002589,
+                'num_boosting_rounds': 10000}
+
+raw_lgb_2y_5 = {'num_leaves': 73,
+                'min_data_in_leaf': 264,
+                'learning_rate': 0.0082,
                 'num_boosting_rounds': 2300}
 
-raw_lgb_2y_2 = {'num_leaves': 47,
-                'min_data_in_leaf': 257,
-                'learning_rate': 0.011487,
-                'num_boosting_rounds': 1400}
 
-raw_lgb_2y_3 = {'num_leaves': 60,
-                'min_data_in_leaf': 349,
-                'learning_rate': 0.008397,
-                'num_boosting_rounds': 1600}
-
-raw_lgb_2y_4 = {'num_leaves': 77,
-                'min_data_in_leaf': 244,
-                'learning_rate': 0.005218,
-                'num_boosting_rounds': 2500}
-
-raw_lgb_2y_5 = {'num_leaves': 47,
-                'min_data_in_leaf': 257,
-                'learning_rate': 0.011487,
-                'num_boosting_rounds': 1600}
-
-raw_lgb_2y_6 = {'num_leaves': 60,
-                'min_data_in_leaf': 349,
-                'learning_rate': 0.008397,
-                'num_boosting_rounds': 1800}
 
 # with fe3
 # raw_lgb_2y_1 = {'num_leaves': 70,
@@ -45,86 +68,110 @@ raw_lgb_2y_6 = {'num_leaves': 60,
 #                 'num_boosting_rounds': 800}
 
 
-lgb_month_1 = {'num_leaves': 5,
-             'min_data_in_leaf': 74,
-             'learning_rate': 0.059968,
-             'num_boosting_rounds': 50}
+# lgb_month_1 = {'num_leaves': 7,
+#              'min_data_in_leaf': 37,
+#              'learning_rate': 0.004607,
+#              'num_boosting_rounds': 360}
+#
+#
+# lgb_month_2 = {'num_leaves': 7,
+#              'min_data_in_leaf': 37,
+#              'learning_rate': 0.004607,
+#              'num_boosting_rounds': 480}
+#
+#
+# lgb_month_3 = {'num_leaves': 6,
+#                 'min_data_in_leaf': 82,
+#                 'learning_rate': 0.003154,
+#                 'num_boosting_rounds': 600}
+#
+#
+# lgb_month_4 = {'num_leaves': 6,
+#                 'min_data_in_leaf': 82,
+#                 'learning_rate': 0.003154,
+#                 'num_boosting_rounds': 800}
+#
+#
+# lgb_month_sizedown_1 = {'num_leaves': 10,
+#              'min_data_in_leaf': 77,
+#              'learning_rate': 0.002,
+#              'num_boosting_rounds': 620}
+#
+#
+# lgb_month_sizedown_2 = {'num_leaves': 10,
+#              'min_data_in_leaf': 77,
+#              'learning_rate': 0.002,
+#              'num_boosting_rounds': 860}
+#
+#
+# lgb_month_sizedown_3 = {'num_leaves': 12,
+#                 'min_data_in_leaf': 72,
+#                 'learning_rate': 0.001035,
+#                 'num_boosting_rounds': 1000}
+#
+#
+# lgb_month_sizedown_4 = {'num_leaves': 12,
+#                 'min_data_in_leaf': 72,
+#                 'learning_rate': 0.001035,
+#                 'num_boosting_rounds': 1450}
 
 
-lgb_month_2 = {'num_leaves': 6,
-                'min_data_in_leaf': 61,
-                'learning_rate': 0.0085312,
-                'num_boosting_rounds': 1000}
+lgb_month_1 = {'num_leaves': 7,
+             'min_data_in_leaf': 37,
+             'learning_rate': 0.004607,
+             'num_boosting_rounds': 360}
 
 
-lgb_month_3 = {'num_leaves': 5,
-                'min_data_in_leaf': 28,
-                'learning_rate': 0.029624,
-                'num_boosting_rounds': 200}
+lgb_month_2 = {'num_leaves': 7,
+             'min_data_in_leaf': 37,
+             'learning_rate': 0.004607,
+             'num_boosting_rounds': 480}
 
 
-lgb_month_4 = {'num_leaves': 5,
-             'min_data_in_leaf': 74,
-             'learning_rate': 0.059968,
-             'num_boosting_rounds': 800}
+lgb_month_3 = {'num_leaves': 7,
+             'min_data_in_leaf': 37,
+             'learning_rate': 0.004607,
+             'num_boosting_rounds': 320}
 
 
-lgb_month_5 = {'num_leaves': 6,
-                'min_data_in_leaf': 61,
-                'learning_rate': 0.0085312,
-                'num_boosting_rounds': 1000}
+lgb_month_4 = {'num_leaves': 7,
+             'min_data_in_leaf': 37,
+             'learning_rate': 0.004607,
+             'num_boosting_rounds': 520}
 
 
-lgb_month_6 = {'num_leaves': 5,
-                'min_data_in_leaf': 28,
-                'learning_rate': 0.029624,
-                'num_boosting_rounds': 200}
+# lgb_month_sizedown_1 = {'num_leaves': 10,
+#              'min_data_in_leaf': 77,
+#              'learning_rate': 0.002,
+#              'num_boosting_rounds': 620}
+#
+#
+# lgb_month_sizedown_2 = {'num_leaves': 10,
+#              'min_data_in_leaf': 77,
+#              'learning_rate': 0.002,
+#              'num_boosting_rounds': 860}
+#
+#
+# lgb_month_sizedown_3 = {'num_leaves': 12,
+#                 'min_data_in_leaf': 72,
+#                 'learning_rate': 0.001035,
+#                 'num_boosting_rounds': 1000}
+#
+#
+# lgb_month_sizedown_4 = {'num_leaves': 12,
+#                 'min_data_in_leaf': 72,
+#                 'learning_rate': 0.001035,
+#                 'num_boosting_rounds': 1450}
 
 
-lgb_month_sizedown_1 = {'num_leaves': 17,
-             'min_data_in_leaf': 69,
-             'learning_rate': 0.00717,
-             'num_boosting_rounds': 200}
+raw_lgb_2y = [raw_lgb_2y_1, raw_lgb_2y_2, raw_lgb_2y_3, raw_lgb_2y_4, raw_lgb_2y_5]
+lgb_month = [lgb_month_1, lgb_month_2, lgb_month_3, lgb_month_4]
+# lgb_month_sizedown = [lgb_month_sizedown_1, lgb_month_sizedown_2, lgb_month_sizedown_3, lgb_month_sizedown_4]
 
 
-lgb_month_sizedown_2 = {'num_leaves': 5,
-                'min_data_in_leaf': 43,
-                'learning_rate': 0.001315,
-                'num_boosting_rounds': 1000}
-
-
-lgb_month_sizedown_3 = {'num_leaves': 17,
-                'min_data_in_leaf': 38,
-                'learning_rate': 0.0465,
-                'num_boosting_rounds': 200}
-
-
-lgb_month_sizedown_4 = {'num_leaves': 17,
-             'min_data_in_leaf': 69,
-             'learning_rate': 0.00717,
-             'num_boosting_rounds': 800}
-
-
-lgb_month_sizedown_5 = {'num_leaves': 5,
-                'min_data_in_leaf': 43,
-                'learning_rate': 0.001315,
-                'num_boosting_rounds': 1000}
-
-
-lgb_month_sizedown_6 = {'num_leaves': 17,
-                'min_data_in_leaf': 38,
-                'learning_rate': 0.0465,
-                'num_boosting_rounds': 200}
-
-
-# raw_lgb_2y = [raw_lgb_2y_1, raw_lgb_2y_2, raw_lgb_2y_3, raw_lgb_2y_4, raw_lgb_2y_5, raw_lgb_2y_6]
-# lgb_month = [lgb_month_1, lgb_month_2, lgb_month_3, lgb_month_4, lgb_month_5, lgb_month_6]
-# lgb_month_sizedown = [lgb_month_sizedown_1, lgb_month_sizedown_2, lgb_month_sizedown_3, lgb_month_sizedown_4, lgb_month_sizedown_5, lgb_month_sizedown_6]
-
-
-raw_lgb_2y = [raw_lgb_2y_2]
-lgb_month = [lgb_month_1]
-lgb_month_sizedown = [lgb_month_sizedown_1]
+# raw_lgb_2y = [raw_lgb_2y_2]
+# lgb_month = [lgb_month_1]
+# lgb_month_sizedown = [lgb_month_sizedown_1]
 
 
 class3_new_features = ('dollar_taxvalue_structure_land_absdiff_norm__groupby__code_zip__mean',
@@ -146,9 +193,6 @@ class3_rm_features = ('code_zip_lgb',
                       'code_county_landuse_lgb',
                       'census_lgb',
                       'block_lgb')
-
-step1_new_features = class3_new_features
-step1_rm_features = class3_rm_features
 
 step2_keep_only_feature = ('year_built', 'area_lot', 'dollar_tax', 'area_living_type_12', 'dollar_taxvalue_structure', 'latitude', 'longitude', 'dollar_taxvalue_land',
                            'dollar_taxvalue_structure', 'dollar_taxvalue_total', 'area_garage') + class3_new_features

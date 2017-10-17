@@ -2588,6 +2588,33 @@ def sale_month_test_by_year(month_set={'01'}):
     print('predict miss median 2017: %.7f' % (y[idx_2017] - pred_mon_2017).median())
 
 
+def sale_month_test_by_year_catboost(mon=1):
+    """See the relationship between 2016 mis-predict and 2017 mis-predict"""
+    x_train = pkl.load(open('only_catboost_x_train_v2.pkl', 'rb'))
+    index_all = np.array(range(x_train.shape[0]))
+    x_train.index = index_all
+
+    y_train = pkl.load(open('only_catboost_y_train_v2.pkl', 'rb'))
+    y_train.index = index_all
+
+    y_pred = pkl.load(open('only_catboost_y_pred_train_v2.pkl', 'rb'))
+    y_pred = pd.Series(y_pred, index=index_all)
+
+    idx_mon = x_train['transaction_month'] == mon
+    idx_mon_2016 = np.logical_and(idx_mon, x_train['transaction_year'] == 2016)
+    idx_mon_2017 = np.logical_and(idx_mon, x_train['transaction_year'] == 2017)
+
+    print('processing month %d' % mon)
+    print('predict miss median mon: %.7f' % (y_train[idx_mon] - y_pred[idx_mon]).median())
+    print('predict miss median 2016: %.7f' % (y_train[idx_mon_2016] - y_pred[idx_mon_2016]).median())
+    print('predict miss median 2017: %.7f' % (y_train[idx_mon_2017] - y_pred[idx_mon_2017]).median())
+
+
+def sale_month_test_by_year_catboost_batch():
+    for mon in range(1, 10):
+        sale_month_test_by_year_catboost(mon)
+
+
 def train_lgb_with_val_one_month(mon, year, param, size_down=False):
     x_raw, y = rm_outlier(train_x, train_y)
     x_step1 = lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
@@ -2622,23 +2649,38 @@ def month_sample_count():
 def train_mon_2step(mon_set):
     """first train with whole data.
        then train with 2016 month data on errors of that month set and predict for 2017"""
-    x = lgb_data_prep(train_x)
+    print('processing month set %s' % str(mon_set))
+    x_raw, y = rm_outlier(train_x, train_y)
+    x_step1 = lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
+    x_step2 = lgb_data_prep(x_raw, keep_only_feature=p.step2_keep_only_feature)
 
-    idx_2016 = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), train_x['data_year'] == 2016)
-    idx_2017 = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), train_x['data_year'] == 2017)
+    idx_2016 = x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), x_raw['data_year'] == 2016)]
+    idx_2017 = x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), x_raw['data_year'] == 2017)]
 
-    raw_pred_2016 = pred_lgb_blend(x.loc[x.index[idx_2016], :])
-    raw_pred_2017 = pred_lgb_blend(x.loc[x.index[idx_2017], :])
+    # raw_pred_2016 = pred_lgb_blend(x_step1.loc[x_raw.index[idx_2016], :])
+    # raw_pred_2017 = pred_lgb_blend(x_step1.loc[x_raw.index[idx_2017], :])
 
-    error_2016 = train_y[idx_2016] - raw_pred_2016
+    # error_2016 = train_y[idx_2016] - raw_pred_2016
+    pred_step1 = pd.Series(pkl.load(open('final_pred/pred_step1_train.pkl', 'rb')), index=x_raw.index)
+    error_2016 = y[idx_2016] - pred_step1[idx_2016]
+    error_2017 = y[idx_2017] - pred_step1[idx_2017]
+
     # train on 2016 error and predict for 2017 error
-    error_gbm = train_lgb(x.loc[x.index[idx_2016], :], error_2016, get_params(p.lgb_month_1, 'reg'))
-    error_2016_pred = error_gbm.predict(x.loc[x.index[idx_2016], :])
-    error_2017_pred = error_gbm.predict(x.loc[x.index[idx_2017], :])
-    error_2017 = train_y[idx_2017] - (raw_pred_2017 + error_2017_pred)
+    error_gbms  = train_gbms_blend(x_step2.loc[idx_2016, :], error_2016, p.lgb_month)
+    error_2016_pred = pred_lgb_blend(x_step2.loc[idx_2016, :], error_gbms)
+    error_2017_pred = pred_lgb_blend(x_step2.loc[idx_2017, :], error_gbms)
+    error_2017_1 = train_y[idx_2017] - (pred_step1[idx_2017] + error_2017_pred)
+    error_2017_2 = train_y[idx_2017] - (pred_step1[idx_2017] + error_2017_pred / 2)
 
-    print('IS(2016) predict miss median: %.7f' % (error_2016 - error_2016_pred).median())
-    print('OS(2017) predict miss median: %.7f' % error_2017.median())
+    print('2016 step1 error median: %.7f' % np.median(error_2016))
+    print('error_2016 pred median: %.7f' % np.median(error_2016_pred))
+    print('IS(2016) predict miss median with full error: %.7f' % (error_2016 - error_2016_pred).median())
+    print('IS(2016) predict miss median with half error: %.7f' % (error_2016 - error_2016_pred / 2).median())
+
+    print('2017 step1 error median: %.7f' % error_2017.median())
+    print('error_2017 pred median: %.7f' % np.median(error_2017_pred))
+    print('OS(2017) predict miss median with full error adj: %.7f' % error_2017_1.median())
+    print('OS(2017) predict miss median:with half error adj %.7f' % error_2017_2.median())
 
 
 def pred_train_mon_2step(rm_outlier_flag=False):
@@ -2666,12 +2708,13 @@ def pred_2016_to_2017():
     x_raw, y = rm_outlier(train_x, train_y)
     # x_raw, y = train_x, train_y
     x = lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
-    x_step2 = lgb_data_prep(x_raw, keep_only_feature=p.mon_pred_keep_feature)
+    x_step2 = lgb_data_prep(x_raw, keep_only_feature=p.step3_keep_only_feature)
     idx_2016 = (x_raw['data_year'] == 2016).values
     idx_2017 = (x_raw['data_year'] == 2017).values
     # get all year_error data
-    gbms_step1 = train_gbms_blend(x, y, p.raw_lgb_2y)
-    raw_pred = pred_lgb_blend(x, gbms_step1)
+    # gbms_step1 = train_gbms_blend(x, y, p.raw_lgb_2y)
+    # raw_pred = pred_lgb_blend(x, gbms_step1)
+    raw_pred = pkl.load(open('final_pred/pred_step1_train.pkl', 'rb'))
     raw_pred = pd.Series(raw_pred, index=x.index)
 
     # train_test_split
@@ -2695,19 +2738,19 @@ def pred_2016_to_2017():
         print('after month train validation error median: %.7f' % np.median(train_y[val_idx_month] - pred_year_2017_month[val_idx_month]))
         pred_year[idx_2017_month] = pred_year_2017_month
 
-    error_year = train_2017_y - pred_year
-    # pkl.dump(error_year, open('error_after_month_train_2017.pkl', 'wb'))
-
-    # adj for year
-    x_year_error = lgb_data_prep(x_raw, keep_only_feature=('2y_diff_dollar_taxvalue_total', '2y_diff_dollar_taxvalue_land', '2y_diff_dollar_taxvalue_structure'))
-    error_year_train = error_year[train_2017_error_idx]
-    x_year_error_train = x_year_error.loc[train_2017_error_idx, :]
-    gbm_year_error = train_lgb(x_year_error_train, error_year_train, get_params(p.lgb_year_1, 'reg'))
-    for mon_set in mon_sets:
-        val_idx_month = val_2017_error_idx[x_raw.loc[val_2017_error_idx, 'sale_month'].apply(lambda x: x in mon_set)]
-        val_month_year_adj = gbm_year_error.predict(x_year_error.loc[val_idx_month, :])
-        val_month_pred_error = train_y[val_idx_month] - pred_year_2017_month_all[str(mon_set)][val_idx_month] - val_month_year_adj
-        print('%s after year train validation error median: %.7f' % (str(mon_set), np.median(val_month_pred_error)))
+    # error_year = train_2017_y - pred_year
+    # # pkl.dump(error_year, open('error_after_month_train_2017.pkl', 'wb'))
+    #
+    # # adj for year
+    # x_year_error = lgb_data_prep(x_raw, keep_only_feature=('2y_diff_dollar_taxvalue_total', '2y_diff_dollar_taxvalue_land', '2y_diff_dollar_taxvalue_structure'))
+    # error_year_train = error_year[train_2017_error_idx]
+    # x_year_error_train = x_year_error.loc[train_2017_error_idx, :]
+    # gbm_year_error = train_lgb(x_year_error_train, error_year_train, get_params(p.lgb_year_1, 'reg'))
+    # for mon_set in mon_sets:
+    #     val_idx_month = val_2017_error_idx[x_raw.loc[val_2017_error_idx, 'sale_month'].apply(lambda x: x in mon_set)]
+    #     val_month_year_adj = gbm_year_error.predict(x_year_error.loc[val_idx_month, :])
+    #     val_month_pred_error = train_y[val_idx_month] - pred_year_2017_month_all[str(mon_set)][val_idx_month] - val_month_year_adj
+    #     print('%s after year train validation error median: %.7f' % (str(mon_set), np.median(val_month_pred_error)))
 
 
 def train_mon_2step_batch_run():
@@ -2716,7 +2759,7 @@ def train_mon_2step_batch_run():
 
 
 def train_gbms_blend(train_x, train_y, params):
-    print('re-train lgb blending')
+    # print('re-train lgb blending')
     gbms = []
     for param in params:
         gbms.append(train_lgb(train_x, train_y, get_params(param, 'reg')))

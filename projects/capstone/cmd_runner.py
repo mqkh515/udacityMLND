@@ -4,6 +4,8 @@ import zillow_1 as z
 import lightgbm as lgb
 import params_cache as p
 import pickle as pkl
+import final_pred_script
+import only_catboost
 
 
 def param_search_batch():
@@ -84,12 +86,12 @@ def param_search_raw_lgb_final():
     z.search_lgb_random(x, y, params_reg, 'lgb_raw_final', n_iter)
 
 
-def param_search_batch_one_mon(label='', keep_size=None):
+def param_search_batch_one_mon(keep_size=('all',)):
     x_raw, y = z.rm_outlier(z.train_x, z.train_y)
     x_step1 = z.lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
     x_step2 = z.lgb_data_prep(x_raw, keep_only_feature=p.step2_keep_only_feature)
 
-    n_iter = 100
+    n_iter = 10
     params = z.params_base.copy()
     params.update(z.params_reg)
 
@@ -112,18 +114,22 @@ def param_search_batch_one_mon(label='', keep_size=None):
     def rand_lambda_l2():
         return np.random.uniform(1, 4)
 
-    def write_to_file(line):
+    def write_to_file(line, label):
         f = open('temp_cv_res_random_month_%s.txt' % label, 'a')
         f.write(line + '\n')
         f.close()
 
     headers = ','.join(['%s-mean' % metric, '%s-stdv' % metric, 'n_rounds-mean', 'n_rounds_stdv', 'num_leaves', 'min_data_in_leaf', 'learning_rate'])
-    write_to_file(headers)
-    res = []
+    for s in keep_size:
+        write_to_file(headers, str(s))
 
-    gbms = []
-    for params_i in p.raw_lgb_2y:
-        gbms.append(z.train_lgb(x_step1, y, z.get_params(params_i, 'reg')))
+    # gbms = []
+    # for params_i in p.raw_lgb_2y:
+    #     gbms.append(z.train_lgb(x_step1, y, z.get_params(params_i, 'reg')))
+    #
+    # error_step1 = y - z.pred_lgb_blend(x_step1, gbms)
+    pred_step1_train = pkl.load(open('final_pred/pred_step1_train.pkl', 'rb'))
+    error_step1 = y - pred_step1_train
 
     for i in range(1, n_iter + 1):
         rand_params = {'num_leaves': rand_num_leaf(),
@@ -132,47 +138,32 @@ def param_search_batch_one_mon(label='', keep_size=None):
                        # 'lambda_l2': 0.1 ** rand_lambda_l2()
                        }
         params.update(rand_params)
-        cv_hist = []
-        n_rounds = []
-        for mon_set in ({'01'}, {'02'}, {'03'}, {'04'}, {'05'}, {'06'}, {'07'}, {'08'}):
-            for year in (2016, 2017):
-                use_idx = np.array(x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), x_raw['data_year'] == year)])
-                if keep_size:
-                    np.random.shuffle(use_idx)
-                    use_idx = use_idx[:keep_size]
-                # print('train_size: %d' % int(np.sum(use_idx)))
-                train_x_step1_local = x_step1.loc[use_idx, :]
-                preds = []
-                for gbm in gbms:
-                    preds.append(gbm.predict(train_x_step1_local))
-                pred = np.array(preds).mean(axis=0)
-                pred_error = y[use_idx] - pred
+        for s in keep_size:
+            cv_hist = []
+            n_rounds = []
+            for mon_set in ({'01'}, {'02'}, {'03'}, {'04'}, {'05'}, {'06'}, {'07'}, {'08'}):
+                for year in (2016, 2017):
+                    use_idx = np.array(x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), x_raw['data_year'] == year)])
+                    if s == 'all':
+                        pass
+                    else:
+                        np.random.shuffle(use_idx)
+                        use_idx = use_idx[:s]
+                    # print('train_size: %d' % int(np.sum(use_idx)))
+                    pred_error = error_step1[use_idx]
 
-                train_x_step2_local = x_step2.loc[use_idx, :]
-                lgb_train = lgb.Dataset(train_x_step2_local, pred_error)
-                eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=3000, early_stopping_rounds=100)
-                cv_hist.append([eval_hist['%s-mean' % metric][-1], eval_hist['%s-stdv' % metric][-1]])
-                n_rounds.append(len(eval_hist['%s-mean' % metric]))
+                    train_x_step2_local = x_step2.loc[use_idx, :]
+                    lgb_train = lgb.Dataset(train_x_step2_local, pred_error)
+                    eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=5000, early_stopping_rounds=100)
+                    cv_hist.append([eval_hist['%s-mean' % metric][-1], eval_hist['%s-stdv' % metric][-1]])
+                    n_rounds.append(len(eval_hist['%s-mean' % metric]))
 
-        m_mean, m_stdv = np.array(cv_hist).mean(axis=0)
-        n_rounds_mean = np.mean(np.array(n_rounds))
-        n_rounds_stdv = np.std(np.array(n_rounds))
-        line = '%.7f,%.7f,%.0f,%.0f,%.0f,%.0f,%.6f' % (m_mean,m_stdv, n_rounds_mean, n_rounds_stdv, rand_params['num_leaves'], rand_params['min_data_in_leaf'], rand_params['learning_rate'])
-        write_to_file(line)
-        res.append([m_mean,
-                    m_stdv,
-                    n_rounds_mean,
-                    n_rounds_stdv,
-                    rand_params['num_leaves'],
-                    rand_params['min_data_in_leaf'],
-                    rand_params['learning_rate'],
-                    # rand_params['lambda_l2']
-                    ])
+            m_mean, m_stdv = np.array(cv_hist).mean(axis=0)
+            n_rounds_mean = np.mean(np.array(n_rounds))
+            n_rounds_stdv = np.std(np.array(n_rounds))
+            line = '%.7f,%.7f,%.0f,%.0f,%.0f,%.0f,%.6f' % (m_mean,m_stdv, n_rounds_mean, n_rounds_stdv, rand_params['num_leaves'], rand_params['min_data_in_leaf'], rand_params['learning_rate'])
+            write_to_file(line, str(s))
         print('finished %d / %d' % (i, n_iter))
-    res_df = pd.DataFrame(res, columns=['%s-mean' % metric, '%s-stdv' % metric, 'n_rounds-mean', 'n_rounds_stdv', 'num_leaves', 'min_data_in_leaf', 'learning_rate',
-                                        # 'lambda_l2'
-                                        ])
-    res_df.to_csv('temp_cv_res_random_month_%s.csv' % label, index=False)
 
 
 def param_search_3step():
@@ -197,12 +188,28 @@ def fe3():
     z.feature_engineering3_combined()
 
 
+def train_prop():
+    gbms_step1 = pkl.load(open('final_pred/gbms_step1.pkl', 'rb'))
+
+    prop_2016_step1 = z.lgb_data_prep(z.prop_2016, p.class3_new_features, p.class3_rm_features)
+    pred_2016_step1 = z.pred_lgb_blend(prop_2016_step1, gbms_step1)
+    pkl.dump(pred_2016_step1, open('final_pred/pred_step1_2016.pkl', 'wb'))
+
+    prop_2017_step1 = z.lgb_data_prep(z.prop_2017, p.class3_new_features, p.class3_rm_features)
+    pred_2017_step1 = z.pred_lgb_blend(prop_2017_step1, gbms_step1)
+    pkl.dump(pred_2017_step1, open('final_pred/pred_step1_2017.pkl', 'wb'))
+
+
 if __name__ == '__main__':
     # param_search_batch()
     # fe3()
     # param_search_batch_one_mon()
     # pred_month_2step()
     # param_search_batch_with_outlier()
-    param_search_batch_one_mon('fe_all_data', None)
-    param_search_batch_one_mon('fe_size_down', 5500)
-    param_search_raw_lgb_final()
+    # param_search_batch_one_mon((11000, 5500))
+    # param_search_raw_lgb_final()
+    # train_prop()
+    # final_pred_script.pred_func()
+    # only_catboost.sub_train()
+    # only_catboost.main_fun()
+    only_catboost.main_fun_v3()
