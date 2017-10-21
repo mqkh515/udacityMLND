@@ -1,0 +1,15 @@
+cat_boost v1: raw copy from internet, with minor fix on prediction of 2017 data, and keep tax features for 2017 properties. 5 ensembles.
+cat_boost v2: based on v1, break census and block into categorical variables, remove original cencusandblock features. 5 ensembles.
+cat_boost v3: based on v2, use date features, year, month, year_month, quarter, year_quarter (removed 'day' feature). 10, 11, 12 as separate months, predict for each single month on LB. 2 ensembles.
+cat_boost v4: based on v3, group 10, 11, 12 as combined month category. 2 ensembles.
+cat_boost v5: based on v4, remove year_month, year_quarter. 3 ensembles.
+
+lgb 1016 combine month: trained with blending of raw params but largely increased iter-rounds.
+lgb 1017 combine month: compared to 2016, use only slightly increased iter-rounds.
+
+blending v1: cat_boost v1 + lgb 1016. 0.0640730
+blending v6: cat_boost v2 + lgb 1016. 0.0640329
+blending v2: cat_boost v2 + lgb 1017. 0.0640371 (mistakenly use lgb 1017, should use 1016 to validate effect of census and block)
+blending v3: cat_boost v3 + lgb 1017. 0.0640567
+blending v4: cat_boost v4 + lgb 1017. 0.0640236 (MARK)
+blending v5: cat_boost v5 + lgb 1016. 0.0640195 (MARK)

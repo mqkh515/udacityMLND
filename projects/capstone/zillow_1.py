@@ -419,6 +419,22 @@ def lgb_raw_2y_blend_cv(train_x, train_y, test_x):
     return np.mean(np.array(preds), axis=0)
 
 
+def lgb_raw_2y_blend_cv_class3_select(train_x, train_y, test_x):
+    train_x = pd.concat([train_x, train_2017_x], axis=0)
+    train_y = pd.concat([train_y, train_2017_y])
+    train_x_lgb = lgb_data_prep(train_x, p.class3_new_features, p.class3_rm_features)
+    test_x_lgb = lgb_data_prep(test_x, p.class3_new_features, p.class3_rm_features)
+
+    preds = []
+    for params_i in p.raw_lgb_2y:
+        params = get_params(params_i, 'reg')
+        gbm = train_lgb(train_x_lgb, train_y, params)
+        pred = gbm.predict(test_x_lgb)
+        preds.append(pred)
+
+    return np.mean(np.array(preds), axis=0)
+
+
 def lgb_raw_2y_blend_adj_mean_cv(train_x, train_y, test_x):
     train_x = pd.concat([train_x, train_2017_x], axis=0)
     train_y = pd.concat([train_y, train_2017_y])
@@ -484,6 +500,21 @@ def lgb_raw_2y_blend_pred(train_x, train_y, test_x):
 
     train_x_lgb = lgb_data_prep(train_x)
     test_x_lgb = lgb_data_prep(test_x)
+
+    preds = []
+    for params_i in p.raw_lgb_2y:
+        params = get_params(params_i, 'reg')
+        gbm = train_lgb(train_x_lgb, train_y, params)
+        pred = gbm.predict(test_x_lgb)
+        preds.append(pred)
+
+    return np.mean(np.array(preds), axis=0)
+
+
+def lgb_raw_2y_blend_pred_class3_select(train_x, train_y, test_x):
+
+    train_x_lgb = lgb_data_prep(train_x, p.class3_new_features, p.class3_rm_features)
+    test_x_lgb = lgb_data_prep(test_x, p.class3_new_features, p.class3_rm_features)
 
     preds = []
     for params_i in p.raw_lgb_2y:
@@ -1088,16 +1119,6 @@ def load_prop_data():
     prop_2016 = prop_join.iloc[list(range(n_row_prop_2016)), :]
     prop_2017 = prop_join.iloc[list(range(n_row_prop_2016, n_row_prop_2016 + n_row_prop_2017)), :]
 
-    return prop_2016, prop_2017
-
-
-def load_train_data(prop_2016, prop_2017, features=()):
-    """if engineered features exists, it should be performed at prop_data level, and then join to error data"""
-
-    for f in features:
-        feature_factory(f, prop_2016)
-        feature_factory(f, prop_2017)
-
     col_diff_dollar_taxvalue_total = prop_2017['dollar_taxvalue_total'] / prop_2016['dollar_taxvalue_total']
     prop_2016['2y_diff_dollar_taxvalue_total'] = col_diff_dollar_taxvalue_total
     prop_2017['2y_diff_dollar_taxvalue_total'] = col_diff_dollar_taxvalue_total
@@ -1107,6 +1128,16 @@ def load_train_data(prop_2016, prop_2017, features=()):
     col_diff_dollar_taxvalue_structure = prop_2017['dollar_taxvalue_structure'] / prop_2016['dollar_taxvalue_structure']
     prop_2016['2y_diff_dollar_taxvalue_structure'] = col_diff_dollar_taxvalue_structure
     prop_2017['2y_diff_dollar_taxvalue_structure'] = col_diff_dollar_taxvalue_structure
+
+    for f in p.class3_new_features:
+        feature_factory(f, prop_2016)
+        feature_factory(f, prop_2017)
+
+    return prop_2016, prop_2017
+
+
+def load_train_data(prop_2016, prop_2017):
+    """if engineered features exists, it should be performed at prop_data level, and then join to error data"""
 
     train_2016 = pd.read_csv('data/train_2016_v2.csv')
     train_2017 = pd.read_csv('data/train_2017.csv')
@@ -1235,7 +1266,8 @@ def convert_cat_col_single(data, col):
     data[col_new] = data[col_new].astype('category')
 
 
-def lgb_data_prep(data, new_features=tuple(), rm_features=tuple()):
+
+def lgb_data_prep(data, new_features=tuple(), rm_features=tuple(), keep_only_feature=()):
     keep_feature = list(feature_info.index.values)
     feature_info_copy = keep_feature.copy()
 
@@ -1257,6 +1289,9 @@ def lgb_data_prep(data, new_features=tuple(), rm_features=tuple()):
     for col in ['num_bathroom_assessor', 'code_county', 'area_living_finished_calc', 'area_firstfloor_assessor']:
         if col in keep_feature:
             keep_feature.remove(col)
+
+    if len(keep_only_feature) > 0:
+        keep_feature = list(keep_only_feature)
 
     return data[keep_feature]
 
@@ -1395,16 +1430,12 @@ def train_lgb(train_x, train_y, params_inp):
     return gbm
 
 
-def train_xgb(train_x, train_y):
-    pass
-
-
 def cv_lgb_final(train_x, train_y, params_inp):
     lgb_train = lgb.Dataset(train_x, train_y)
     params = params_inp.copy()
     num_boost_round = params.pop('num_boosting_rounds')
     eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=num_boost_round, early_stopping_rounds=30)
-    return eval_hist['l1-mean'][-1], eval_hist['l1-stdv'][-1]
+    return eval_hist['l1-mean'][-1], eval_hist['l1-stdv'][-1], len(eval_hist['l1-mean'])
 
 
 def feature_importance(gbm, label=None, print_to_scr=True):
@@ -1541,22 +1572,23 @@ def search_lgb_bo(train_x, train_y, params, label='', n_iter=80,
 def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
                       min_data_in_leaf_range=(200, 800),
                       num_leaf_range=(30, 80),
-                      with_outlier=False):
+                      with_rm_outlier=False):
     lgb_train = lgb.Dataset(train_x, train_y)
     if 'num_boosting_rounds' in params:
         params.pop('num_boosting_rounds')
 
     metric = list(params['metric'])[0]
-    if with_outlier:
+    if with_rm_outlier:
         train_x_outlier_rm, train_y_outlier_rm = rm_outlier(train_x, train_y)
         lgb_train_outlier = lgb.Dataset(train_x_outlier_rm, train_y_outlier_rm)
-        columns = ['%s-mean' % metric, '%s-stdv' % metric, '%s-mean_outlier_rm' % metric, '%s-stdv' % metric, 'num_leaves', 'min_data_in_leaf', 'learning_rate',
+        columns = ['%s-mean' % metric, '%s-stdv' % metric, '%s-mean_outlier_rm' % metric, '%s-stdv' % metric, 'n_rounds', 'num_leaves', 'min_data_in_leaf', 'learning_rate',
                    # 'lambda_l2'
                    ]
     else:
-        columns = ['%s-mean' % metric, '%s-stdv' % metric, 'num_leaves', 'min_data_in_leaf', 'learning_rate',
+        columns = ['%s-mean' % metric, '%s-stdv' % metric, 'n_rounds', 'num_leaves', 'min_data_in_leaf', 'learning_rate',
         # 'lambda_l2'
         ]
+    headers = ','.join(columns)
 
     def rand_min_data_in_leaf():
         return np.random.randint(min_data_in_leaf_range[0], min_data_in_leaf_range[1])
@@ -1570,7 +1602,13 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
     def rand_lambda_l2():
         return np.random.uniform(1, 4)
 
+    def write_to_file(line):
+        f = open('temp_cv_res_random_%s.txt' % label, 'a')
+        f.write(line + '\n')
+        f.close()
+
     res = []
+    write_to_file(headers)
     for i in range(1, n_iter + 1):
         rand_params = {'num_leaves': rand_num_leaf(),
                        'min_data_in_leaf': rand_min_data_in_leaf(),
@@ -1578,26 +1616,31 @@ def search_lgb_random(train_x, train_y, params, label='', n_iter=80,
                        # 'lambda_l2': 0.1 ** rand_lambda_l2()
                        }
         params.update(rand_params)
-        eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=3000, early_stopping_rounds=30)
-        if with_outlier:
-            eval_hist_outlier_rm = lgb.cv(params, lgb_train_outlier, stratified=False, num_boost_round=3000, early_stopping_rounds=30)
-            res.append([eval_hist['%s-mean' % metric][-1],
+        eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=10000, early_stopping_rounds=100)
+        if with_rm_outlier:
+            eval_hist_outlier_rm = lgb.cv(params, lgb_train_outlier, stratified=False, num_boost_round=6000, early_stopping_rounds=100)
+            res_list = [eval_hist['%s-mean' % metric][-1],
                         eval_hist['%s-stdv' % metric][-1],
                         eval_hist_outlier_rm['%s-mean' % metric][-1],
                         eval_hist_outlier_rm['%s-stdv' % metric][-1],
+                        len(eval_hist_outlier_rm['%s-mean' % metric]),
                         rand_params['num_leaves'],
                         rand_params['min_data_in_leaf'],
                         rand_params['learning_rate'],
                         # rand_params['lambda_l2']
-                        ])
+                        ]
+
         else:
-            res.append([eval_hist['%s-mean' % metric][-1],
-                        eval_hist['%s-stdv' % metric][-1],
-                        rand_params['num_leaves'],
-                        rand_params['min_data_in_leaf'],
-                        rand_params['learning_rate'],
-                        # rand_params['lambda_l2']
-                        ])
+            res_list = [eval_hist['%s-mean' % metric][-1],
+                         eval_hist['%s-stdv' % metric][-1],
+                         len(eval_hist['%s-mean' % metric]),
+                         rand_params['num_leaves'],
+                         rand_params['min_data_in_leaf'],
+                         rand_params['learning_rate'],
+                         # rand_params['lambda_l2']
+                         ]
+            write_to_file('%.7f,%.7f,%.0f,%.0f,%.0f,%.6f' % tuple(res_list))
+        res.append(res_list)
 
         print('finished %d / %d' % (i, n_iter))
     res_df = pd.DataFrame(res, columns=columns)
@@ -1655,21 +1698,6 @@ def submit_nosea(score, ver):
     df['ParcelId'] = submission['ParcelId']
     for col in ('201610', '201611', '201612', '201710', '201711', '201712'):
         df[col] = score
-    date_str = ''.join(str(datetime.date.today()).split('-'))
-    print(df.shape)
-    df.to_csv('data/submission_%s_v%d.csv.gz' % (date_str, ver), index=False, float_format='%.4f', compression='gzip')
-
-
-def submit_sea(col1610, col1611, col1612, ver):
-    submission = pd.read_csv('data/sample_submission.csv', header=0)
-    df = pd.DataFrame()
-    df['ParcelId'] = submission['ParcelId']
-    df['201610'] = col1610
-    df['201611'] = col1611
-    df['201612'] = col1612
-    df['201710'] = col1610
-    df['201711'] = col1611
-    df['201712'] = col1612
     date_str = ''.join(str(datetime.date.today()).split('-'))
     print(df.shape)
     df.to_csv('data/submission_%s_v%d.csv.gz' % (date_str, ver), index=False, float_format='%.4f', compression='gzip')
@@ -1983,7 +2011,7 @@ def feature_engineering3(train_x_inp, train_y, params, label):
         gbm = train_lgb(data, train_y)
         feature_sorted, avg_rank_sorted = feature_importance(gbm, print_to_scr=False)
         col_rank = avg_rank_sorted[list(feature_sorted).index(col_name)]
-        cv_mean, cv_stdv = cv_lgb_final(data, train_y, params)
+        cv_mean, cv_stdv, _ = cv_lgb_final(data, train_y, params)
         write_to_file('%s,%.7f,%.7f,%.1f\n' % (col_name, cv_mean, cv_stdv, col_rank))
 
     train_x = train_x_inp.copy()
@@ -1993,7 +2021,7 @@ def feature_engineering3(train_x_inp, train_y, params, label):
     write_to_file('col,score_mean,score_stdv,avg_rank\n')
 
     # raw lgb
-    cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
+    cv_mean, cv_stdv, _ = cv_lgb_final(train_x_lgb, train_y, params)
     write_to_file('%s,%.7f,%.7f,%.1f\n' % ('None', cv_mean, cv_stdv, 0))
 
     new_num_features = []
@@ -2096,7 +2124,7 @@ def feature_engineering3_combined():
         gbm = train_lgb(train_x_lgb, train_y, params)
         feature_sorted, avg_rank_sorted = feature_importance(gbm, print_to_scr=False)
         col_rank = avg_rank_sorted[list(feature_sorted).index(col)]
-        # cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
+        # cv_mean, cv_stdv, _ = cv_lgb_final(train_x_lgb, train_y, params)
         # write_to_file('%s,%.7f,%.7f,%.1f\n' % (col, cv_mean, cv_stdv, col_rank))
         write_to_file('%s,%.7f,%.7f,%.1f\n' % (col, 0.0, 0.0, col_rank))
 
@@ -2109,7 +2137,7 @@ def feature_engineering3_combined():
     # raw lgb
     train_x, train_y = load_train_data(prop_2016, prop_2017)
     train_x_lgb = lgb_data_prep(train_x)
-    cv_mean, cv_stdv = cv_lgb_final(train_x_lgb, train_y, params)
+    cv_mean, cv_stdv, _ = cv_lgb_final(train_x_lgb, train_y, params)
     write_to_file('%s,%.7f,%.7f,%.1f\n' % ('None', cv_mean, cv_stdv, 0))
 
     new_num_features = []
@@ -2285,229 +2313,229 @@ def feature_factory(col, data, keep_num_var=False):
                 print('num var kept: %s' % num_var)
 
 
-# -------------------------------------------------------------- 2layer ------------------------------------------------------------
-def pred_2layer_abs_clf(train_x, train_y, test_x):
-
-    params_clf_local = params_base.copy()
-    params_reg_local = params_base.copy()
-    params_clf_local.update(params_clf)
-    params_reg_local.update(params_reg)
-
-    params_clf_local.update(params_clf_abs_error)
-    params_reg_big = params_reg_local.copy()
-    params_reg_big.update(params_reg_abs_error_big)
-    params_reg_small = params_reg_local.copy()
-    params_reg_small.update(params_reg_abs_error_small)
-
-    train_y_clf = np.zeros(train_y.shape[0])
-    mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
-    train_y_clf[mark_1_idx] = 1
-    gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
-    prob_big = gbm_clf.predict(test_x)
-
-    train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
-    train_y_big_error = train_y[mark_1_idx].copy()
-    gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
-    big_error_pred = gbm_big_error.predict(test_x)
-
-    train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
-    train_y_small_error = train_y[~mark_1_idx].copy()
-    gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
-    small_error_pred = gbm_small_error.predict(test_x)
-
-    return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
-
-
-def pred_2layer_sign_clf(train_x, train_y, test_x):
-
-    params_clf_local = params_base.copy()
-    params_reg_local = params_base.copy()
-    params_clf_local.update(params_clf)
-    params_reg_local.update(params_reg)
-
-    params_clf_local.update(params_clf_sign_error)
-    params_reg_big = params_reg_local.copy()
-    params_reg_big.update(params_reg_sign_error_pos)
-    params_reg_small = params_reg_local.copy()
-    params_reg_small.update(params_reg_sign_error_neg)
-
-    train_y_clf = np.zeros(train_y.shape[0])
-    mark_1_idx = train_y > 0
-    train_y_clf[mark_1_idx] = 1
-    gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
-    prob_big = gbm_clf.predict(test_x)
-
-    train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
-    train_y_big_error = train_y[mark_1_idx].copy()
-    gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
-    big_error_pred = gbm_big_error.predict(test_x)
-
-    train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
-    train_y_small_error = train_y[~mark_1_idx].copy()
-    gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
-    small_error_pred = gbm_small_error.predict(test_x)
-
-    return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
-
-
-def pred_2layer_mid_clf(train_x, train_y, test_x):
-
-    params_clf_local = params_base.copy()
-    params_reg_local = params_base.copy()
-    params_clf_local.update(params_clf)
-    params_reg_local.update(params_reg)
-
-    params_clf_local.update(params_clf_mid_error)
-    params_reg_big = params_reg_local.copy()
-    params_reg_big.update(params_reg_mid_error_pos)
-    params_reg_small = params_reg_local.copy()
-    params_reg_small.update(params_reg_mid_error_neg)
-
-    train_y_clf = np.zeros(train_y.shape[0])
-    mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
-    train_y_clf[mark_1_idx] = 1
-    gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
-    prob_big = gbm_clf.predict(test_x)
-
-    train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
-    train_y_big_error = train_y[mark_1_idx].copy()
-    gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
-    big_error_pred = gbm_big_error.predict(test_x)
-
-    train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
-    train_y_small_error = train_y[~mark_1_idx].copy()
-    gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
-    small_error_pred = gbm_small_error.predict(test_x)
-
-    return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
-
-
-def pred_blending_raw_sign_clf(train_x, train_y, test_x):
-    raw_pred = lgb_raw(train_x, train_y, test_x)
-    sign_clf_pred = pred_2layer_sign_clf(train_x, train_y, test_x)
-    return (raw_pred + sign_clf_pred) / 2
-
-
-def param_search_2layer():
-    train_x, train_y, test_x = load_data_raw()
-    del test_x
-    gc.collect()
-
-    # prep for lgb
-    prep_for_lgb_single(train_x)
-    train_x_lgb = lgb_data_prep(train_x)
-
-    n_iter = 50
-
-    # 3 sets of run
-    params_clf_local = params_base.copy()
-    params_reg_local = params_base.copy()
-    params_clf_local.update(params_clf)
-    params_reg_local.update(params_reg)
-
-    # 1, clf by abs error size
-    # train_y_clf_run1 = np.zeros(train_y.shape[0])
-    # mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
-    # train_y_clf_run1[mark_1_idx] = 1
-    # search_lgb_random(train_x_lgb, train_y_clf_run1, params_clf_local, label='clf_abserror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
-    #
-    # train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
-    # train_y_large_error = train_y[mark_1_idx].copy()
-    # search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_large_abserror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
-    #
-    # train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
-    # train_y_small_error = train_y[~mark_1_idx].copy()
-    # search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_small_abserror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
-
-    # 2, clf by sign of error
-    train_y_clf_run2 = np.zeros(train_y.shape[0])
-    mark_1_idx = train_y > 0
-    train_y_clf_run2[mark_1_idx] = 1
-    search_lgb_random(train_x_lgb, train_y_clf_run2, params_clf_local, label='clf_signerror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
-
-    train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
-    train_y_large_error = train_y[mark_1_idx].copy()
-    search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_pos_signerror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
-
-    train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
-    train_y_small_error = train_y[~mark_1_idx].copy()
-    search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_neg_signerror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
-
-    # # 3, clf by median of error
-    # train_y_clf_run3 = np.zeros(train_y.shape[0])
-    # mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
-    # train_y_clf_run3[mark_1_idx] = 1
-    # search_lgb_random(train_x_lgb, train_y_clf_run3, params_clf_local, label='clf_miderror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
-    #
-    # train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
-    # train_y_large_error = train_y[mark_1_idx].copy()
-    # search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_pos_miderror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
-    #
-    # train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
-    # train_y_small_error = train_y[~mark_1_idx].copy()
-    # search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_neg_miderror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
-
-
-def cv_2layer(train_x, train_y, op_type, class_type):
-
-    params_clf_local = params_base.copy()
-    params_reg_local = params_base.copy()
-    params_clf_local.update(params_clf)
-    params_reg_local.update(params_reg)
-
-    if op_type == 'abs':
-        mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
-        if class_type == 'clf':
-            params_clf_local.update(params_clf_abs_error)
-            train_y_clf = np.zeros(train_y.shape[0])
-            train_y_clf[mark_1_idx] = 1
-            train_lgb_with_val(train_x, train_y_clf, params_clf_local)
-        elif class_type == 'big':
-            params_reg_local.update(params_reg_abs_error_big)
-            train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
-            train_y_large_error = train_y[mark_1_idx].copy()
-            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
-        elif class_type == 'small':
-            params_reg_local.update(params_reg_abs_error_small)
-            train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
-            train_y_large_error = train_y[~mark_1_idx].copy()
-            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
-
-    elif op_type == 'sign':
-        mark_1_idx = train_y > 0
-        if class_type == 'clf':
-            params_clf_local.update(params_clf_sign_error)
-            train_y_clf = np.zeros(train_y.shape[0])
-            train_y_clf[mark_1_idx] = 1
-            train_lgb_with_val(train_x, train_y_clf, params_clf_local)
-        elif class_type == 'pos':
-            params_reg_local.update(params_reg_sign_error_pos)
-            train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
-            train_y_large_error = train_y[mark_1_idx].copy()
-            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
-        elif class_type == 'neg':
-            params_reg_local.update(params_reg_sign_error_neg)
-            train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
-            train_y_large_error = train_y[~mark_1_idx].copy()
-            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
-
-    elif op_type == 'mid':
-        mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
-        if class_type == 'clf':
-            params_clf_local.update(params_clf_mid_error)
-            train_y_clf = np.zeros(train_y.shape[0])
-            train_y_clf[mark_1_idx] = 1
-            train_lgb_with_val(train_x, train_y_clf, params_clf_local)
-        elif class_type == 'pos':
-            params_reg_local.update(params_reg_mid_error_pos)
-            train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
-            train_y_large_error = train_y[mark_1_idx].copy()
-            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
-        elif class_type == 'neg':
-            params_reg_local.update(params_reg_mid_error_neg)
-            train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
-            train_y_large_error = train_y[~mark_1_idx].copy()
-            train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+# # -------------------------------------------------------------- 2layer ------------------------------------------------------------
+# def pred_2layer_abs_clf(train_x, train_y, test_x):
+#
+#     params_clf_local = params_base.copy()
+#     params_reg_local = params_base.copy()
+#     params_clf_local.update(params_clf)
+#     params_reg_local.update(params_reg)
+#
+#     params_clf_local.update(params_clf_abs_error)
+#     params_reg_big = params_reg_local.copy()
+#     params_reg_big.update(params_reg_abs_error_big)
+#     params_reg_small = params_reg_local.copy()
+#     params_reg_small.update(params_reg_abs_error_small)
+#
+#     train_y_clf = np.zeros(train_y.shape[0])
+#     mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
+#     train_y_clf[mark_1_idx] = 1
+#     gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
+#     prob_big = gbm_clf.predict(test_x)
+#
+#     train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+#     train_y_big_error = train_y[mark_1_idx].copy()
+#     gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
+#     big_error_pred = gbm_big_error.predict(test_x)
+#
+#     train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+#     train_y_small_error = train_y[~mark_1_idx].copy()
+#     gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
+#     small_error_pred = gbm_small_error.predict(test_x)
+#
+#     return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
+#
+#
+# def pred_2layer_sign_clf(train_x, train_y, test_x):
+#
+#     params_clf_local = params_base.copy()
+#     params_reg_local = params_base.copy()
+#     params_clf_local.update(params_clf)
+#     params_reg_local.update(params_reg)
+#
+#     params_clf_local.update(params_clf_sign_error)
+#     params_reg_big = params_reg_local.copy()
+#     params_reg_big.update(params_reg_sign_error_pos)
+#     params_reg_small = params_reg_local.copy()
+#     params_reg_small.update(params_reg_sign_error_neg)
+#
+#     train_y_clf = np.zeros(train_y.shape[0])
+#     mark_1_idx = train_y > 0
+#     train_y_clf[mark_1_idx] = 1
+#     gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
+#     prob_big = gbm_clf.predict(test_x)
+#
+#     train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+#     train_y_big_error = train_y[mark_1_idx].copy()
+#     gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
+#     big_error_pred = gbm_big_error.predict(test_x)
+#
+#     train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+#     train_y_small_error = train_y[~mark_1_idx].copy()
+#     gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
+#     small_error_pred = gbm_small_error.predict(test_x)
+#
+#     return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
+#
+#
+# def pred_2layer_mid_clf(train_x, train_y, test_x):
+#
+#     params_clf_local = params_base.copy()
+#     params_reg_local = params_base.copy()
+#     params_clf_local.update(params_clf)
+#     params_reg_local.update(params_reg)
+#
+#     params_clf_local.update(params_clf_mid_error)
+#     params_reg_big = params_reg_local.copy()
+#     params_reg_big.update(params_reg_mid_error_pos)
+#     params_reg_small = params_reg_local.copy()
+#     params_reg_small.update(params_reg_mid_error_neg)
+#
+#     train_y_clf = np.zeros(train_y.shape[0])
+#     mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
+#     train_y_clf[mark_1_idx] = 1
+#     gbm_clf = train_lgb(train_x, train_y_clf, params_clf_local)
+#     prob_big = gbm_clf.predict(test_x)
+#
+#     train_x_big_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+#     train_y_big_error = train_y[mark_1_idx].copy()
+#     gbm_big_error = train_lgb(train_x_big_error, train_y_big_error, params_reg_big)
+#     big_error_pred = gbm_big_error.predict(test_x)
+#
+#     train_x_small_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+#     train_y_small_error = train_y[~mark_1_idx].copy()
+#     gbm_small_error = train_lgb(train_x_small_error, train_y_small_error, params_reg_small)
+#     small_error_pred = gbm_small_error.predict(test_x)
+#
+#     return big_error_pred * prob_big + (1 - prob_big) * small_error_pred
+#
+#
+# def pred_blending_raw_sign_clf(train_x, train_y, test_x):
+#     raw_pred = lgb_raw(train_x, train_y, test_x)
+#     sign_clf_pred = pred_2layer_sign_clf(train_x, train_y, test_x)
+#     return (raw_pred + sign_clf_pred) / 2
+#
+#
+# def param_search_2layer():
+#     train_x, train_y, test_x = load_data_raw()
+#     del test_x
+#     gc.collect()
+#
+#     # prep for lgb
+#     prep_for_lgb_single(train_x)
+#     train_x_lgb = lgb_data_prep(train_x)
+#
+#     n_iter = 50
+#
+#     # 3 sets of run
+#     params_clf_local = params_base.copy()
+#     params_reg_local = params_base.copy()
+#     params_clf_local.update(params_clf)
+#     params_reg_local.update(params_reg)
+#
+#     # 1, clf by abs error size
+#     # train_y_clf_run1 = np.zeros(train_y.shape[0])
+#     # mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
+#     # train_y_clf_run1[mark_1_idx] = 1
+#     # search_lgb_random(train_x_lgb, train_y_clf_run1, params_clf_local, label='clf_abserror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
+#     #
+#     # train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
+#     # train_y_large_error = train_y[mark_1_idx].copy()
+#     # search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_large_abserror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+#     #
+#     # train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
+#     # train_y_small_error = train_y[~mark_1_idx].copy()
+#     # search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_small_abserror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+#
+#     # 2, clf by sign of error
+#     train_y_clf_run2 = np.zeros(train_y.shape[0])
+#     mark_1_idx = train_y > 0
+#     train_y_clf_run2[mark_1_idx] = 1
+#     search_lgb_random(train_x_lgb, train_y_clf_run2, params_clf_local, label='clf_signerror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
+#
+#     train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
+#     train_y_large_error = train_y[mark_1_idx].copy()
+#     search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_pos_signerror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+#
+#     train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
+#     train_y_small_error = train_y[~mark_1_idx].copy()
+#     search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_neg_signerror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+#
+#     # # 3, clf by median of error
+#     # train_y_clf_run3 = np.zeros(train_y.shape[0])
+#     # mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
+#     # train_y_clf_run3[mark_1_idx] = 1
+#     # search_lgb_random(train_x_lgb, train_y_clf_run3, params_clf_local, label='clf_miderror', n_iter=n_iter, min_data_in_leaf_range=(200, 500), num_leaf_range=(30,50))
+#     #
+#     # train_x_large_error = train_x_lgb.loc[train_x_lgb.index[mark_1_idx], :].copy()
+#     # train_y_large_error = train_y[mark_1_idx].copy()
+#     # search_lgb_random(train_x_large_error, train_y_large_error, params_reg_local, label='lgb_pos_miderror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+#     #
+#     # train_x_small_error = train_x_lgb.loc[train_x_lgb.index[~mark_1_idx], :].copy()
+#     # train_y_small_error = train_y[~mark_1_idx].copy()
+#     # search_lgb_random(train_x_small_error, train_y_small_error, params_reg_local, label='lgb_neg_miderror', n_iter=n_iter, min_data_in_leaf_range=(100, 300), num_leaf_range=(20, 40))
+#
+#
+# def cv_2layer(train_x, train_y, op_type, class_type):
+#
+#     params_clf_local = params_base.copy()
+#     params_reg_local = params_base.copy()
+#     params_clf_local.update(params_clf)
+#     params_reg_local.update(params_reg)
+#
+#     if op_type == 'abs':
+#         mark_1_idx = np.logical_or(train_y > Y_Q_MAP[float_to_str(0.75)], train_y < Y_Q_MAP[float_to_str(0.25)])
+#         if class_type == 'clf':
+#             params_clf_local.update(params_clf_abs_error)
+#             train_y_clf = np.zeros(train_y.shape[0])
+#             train_y_clf[mark_1_idx] = 1
+#             train_lgb_with_val(train_x, train_y_clf, params_clf_local)
+#         elif class_type == 'big':
+#             params_reg_local.update(params_reg_abs_error_big)
+#             train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+#             train_y_large_error = train_y[mark_1_idx].copy()
+#             train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+#         elif class_type == 'small':
+#             params_reg_local.update(params_reg_abs_error_small)
+#             train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+#             train_y_large_error = train_y[~mark_1_idx].copy()
+#             train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+#
+#     elif op_type == 'sign':
+#         mark_1_idx = train_y > 0
+#         if class_type == 'clf':
+#             params_clf_local.update(params_clf_sign_error)
+#             train_y_clf = np.zeros(train_y.shape[0])
+#             train_y_clf[mark_1_idx] = 1
+#             train_lgb_with_val(train_x, train_y_clf, params_clf_local)
+#         elif class_type == 'pos':
+#             params_reg_local.update(params_reg_sign_error_pos)
+#             train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+#             train_y_large_error = train_y[mark_1_idx].copy()
+#             train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+#         elif class_type == 'neg':
+#             params_reg_local.update(params_reg_sign_error_neg)
+#             train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+#             train_y_large_error = train_y[~mark_1_idx].copy()
+#             train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+#
+#     elif op_type == 'mid':
+#         mark_1_idx = train_y > Y_Q_MAP[float_to_str(0.5)]
+#         if class_type == 'clf':
+#             params_clf_local.update(params_clf_mid_error)
+#             train_y_clf = np.zeros(train_y.shape[0])
+#             train_y_clf[mark_1_idx] = 1
+#             train_lgb_with_val(train_x, train_y_clf, params_clf_local)
+#         elif class_type == 'pos':
+#             params_reg_local.update(params_reg_mid_error_pos)
+#             train_x_large_error = train_x.loc[train_x.index[mark_1_idx], :].copy()
+#             train_y_large_error = train_y[mark_1_idx].copy()
+#             train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
+#         elif class_type == 'neg':
+#             params_reg_local.update(params_reg_mid_error_neg)
+#             train_x_large_error = train_x.loc[train_x.index[~mark_1_idx], :].copy()
+#             train_y_large_error = train_y[~mark_1_idx].copy()
+#             train_lgb_with_val(train_x_large_error, train_y_large_error, params_reg_local)
 
 
 def sale_month_test(month_set={'10', '11', '12'}, with_month=False):
@@ -2533,12 +2561,16 @@ def sale_month_test(month_set={'10', '11', '12'}, with_month=False):
     test_x = x.loc[idx_test, :]
     test_y = y[idx_test]
 
+    gbm = train_lgb(train_x, train_y, get_params(p.raw_lgb_2y_1, 'reg'))
+
     pred_y = lgb_raw_2y_blend_pred(train_x, train_y, test_x)
     pred_y_is = lgb_raw_2y_blend_pred(train_x, train_y, train_x)
 
     print('IS predict miss median: %.7f' % (train_y - pred_y_is).median())
     print('IS predict miss median on month: %.7f' % (train_y[q4_idx[:split_n_q4]] - pred_y_is[q4_idx[:split_n_q4]]).median())
     print('OS predict miss median: %.7f' % (test_y - pred_y).median())
+
+    return gbm
 
 
 def sale_month_test_by_year(month_set={'01'}):
@@ -2557,15 +2589,52 @@ def sale_month_test_by_year(month_set={'01'}):
     print('predict miss median 2017: %.7f' % (y[idx_2017] - pred_mon_2017).median())
 
 
-def train_lgb_with_val_one_month(mon, year):
-    x_raw, y = load_train_data(prop_2016, prop_2017)
-    x = lgb_data_prep(x_raw)
+def sale_month_test_by_year_catboost(mon=1):
+    """See the relationship between 2016 mis-predict and 2017 mis-predict"""
+    x_train = pkl.load(open('only_catboost_x_train_v2.pkl', 'rb'))
+    index_all = np.array(range(x_train.shape[0]))
+    x_train.index = index_all
 
-    idx = np.logical_and(x_raw['sale_month'].apply(lambda x: x == mon), x_raw['data_year'] == year)
-    pred_raw = pred_lgb_blend(x.loc[x.index[idx], :])
+    y_train = pkl.load(open('only_catboost_y_train_v2.pkl', 'rb'))
+    y_train.index = index_all
+
+    y_pred = pkl.load(open('only_catboost_y_pred_train_v2.pkl', 'rb'))
+    y_pred = pd.Series(y_pred, index=index_all)
+
+    idx_mon = x_train['transaction_month'] == mon
+    idx_mon_2016 = np.logical_and(idx_mon, x_train['transaction_year'] == 2016)
+    idx_mon_2017 = np.logical_and(idx_mon, x_train['transaction_year'] == 2017)
+
+    print('processing month %d' % mon)
+    print('predict miss median mon: %.7f' % (y_train[idx_mon] - y_pred[idx_mon]).median())
+    print('predict miss median 2016: %.7f' % (y_train[idx_mon_2016] - y_pred[idx_mon_2016]).median())
+    print('predict miss median 2017: %.7f' % (y_train[idx_mon_2017] - y_pred[idx_mon_2017]).median())
+
+
+def sale_month_test_by_year_catboost_batch():
+    for mon in range(1, 10):
+        sale_month_test_by_year_catboost(mon)
+
+
+def train_lgb_with_val_one_month(mon, year, param, size_down=False):
+    x_raw, y = rm_outlier(train_x, train_y)
+    x_step1 = lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
+    x_step2 = lgb_data_prep(x_raw, keep_only_feature=p.step2_keep_only_feature)
+
+    if not os.path.exists('raw_gbm_blending.pkl'):
+        gbms = train_gbms_blend(x_step1, y, p.raw_lgb_2y)
+        pkl.dump(gbms, open('raw_gbm_blending.pkl', 'wb'))
+    else:
+        gbms = pkl.load(open('raw_gbm_blending.pkl', 'rb'))
+
+    idx = x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x == mon), x_raw['data_year'] == year)].values
+    if size_down:
+        np.random.shuffle(idx)
+        idx = idx[:]
+    pred_raw = pred_lgb_blend(x_step1.loc[idx, :], gbms)
     error = y[idx] - pred_raw
 
-    train_lgb_with_val(x.loc[x.index[idx], :], error, get_params(p.lgb_month_3, 'reg'))
+    train_lgb_with_val(x_step2.loc[idx, :], error, get_params(param, 'reg'))
 
 
 def month_sample_count():
@@ -2581,23 +2650,42 @@ def month_sample_count():
 def train_mon_2step(mon_set):
     """first train with whole data.
        then train with 2016 month data on errors of that month set and predict for 2017"""
-    x = lgb_data_prep(train_x)
+    print('processing month set %s' % str(mon_set))
+    x_raw, y = rm_outlier(train_x, train_y)
+    x_step1 = lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
+    x_step2 = lgb_data_prep(x_raw, keep_only_feature=p.step2_keep_only_feature)
 
-    idx_2016 = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), train_x['data_year'] == 2016)
-    idx_2017 = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), train_x['data_year'] == 2017)
+    idx_2016 = x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), x_raw['data_year'] == 2016)]
+    idx_2017 = x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), x_raw['data_year'] == 2017)]
 
-    raw_pred_2016 = pred_lgb_blend(x.loc[x.index[idx_2016], :])
-    raw_pred_2017 = pred_lgb_blend(x.loc[x.index[idx_2017], :])
 
-    error_2016 = y[idx_2016] - raw_pred_2016
+    # raw_pred_2016 = pred_lgb_blend(x.loc[x.index[idx_2016], :])
+    # raw_pred_2017 = pred_lgb_blend(x.loc[x.index[idx_2017], :])
+
+    # raw_pred_2016 = pred_lgb_blend(x_step1.loc[x_raw.index[idx_2016], :])
+    # raw_pred_2017 = pred_lgb_blend(x_step1.loc[x_raw.index[idx_2017], :])
+
+    # error_2016 = train_y[idx_2016] - raw_pred_2016
+    pred_step1 = pd.Series(pkl.load(open('final_pred/pred_step1_train.pkl', 'rb')), index=x_raw.index)
+    error_2016 = y[idx_2016] - pred_step1[idx_2016]
+    error_2017 = y[idx_2017] - pred_step1[idx_2017]
+
     # train on 2016 error and predict for 2017 error
-    error_gbm = train_lgb(x.loc[x.index[idx_2016], :], error_2016, get_params(p.lgb_month, 'reg'))
-    error_2016_pred = error_gbm.predict(x.loc[x.index[idx_2016], :])
-    error_2017_pred = error_gbm.predict(x.loc[x.index[idx_2017], :])
-    error_2017 = y[idx_2017] - (raw_pred_2017 + error_2017_pred)
+    error_gbms  = train_gbms_blend(x_step2.loc[idx_2016, :], error_2016, p.lgb_month)
+    error_2016_pred = pred_lgb_blend(x_step2.loc[idx_2016, :], error_gbms)
+    error_2017_pred = pred_lgb_blend(x_step2.loc[idx_2017, :], error_gbms)
+    error_2017_1 = train_y[idx_2017] - (pred_step1[idx_2017] + error_2017_pred)
+    error_2017_2 = train_y[idx_2017] - (pred_step1[idx_2017] + error_2017_pred / 2)
 
-    print('IS(2016) predict miss median: %.7f' % (error_2016 - error_2016_pred).median())
-    print('OS(2017) predict miss median: %.7f' % error_2017.median())
+    print('2016 step1 error median: %.7f' % np.median(error_2016))
+    print('error_2016 pred median: %.7f' % np.median(error_2016_pred))
+    print('IS(2016) predict miss median with full error: %.7f' % (error_2016 - error_2016_pred).median())
+    print('IS(2016) predict miss median with half error: %.7f' % (error_2016 - error_2016_pred / 2).median())
+
+    print('2017 step1 error median: %.7f' % error_2017.median())
+    print('error_2017 pred median: %.7f' % np.median(error_2017_pred))
+    print('OS(2017) predict miss median with full error adj: %.7f' % error_2017_1.median())
+    print('OS(2017) predict miss median:with half error adj %.7f' % error_2017_2.median())
 
 
 def pred_train_mon_2step(rm_outlier_flag=False):
@@ -2611,7 +2699,7 @@ def pred_train_mon_2step(rm_outlier_flag=False):
     idx = x_raw['sale_month'].apply(lambda x: x in mon_set).values
     raw_pred_train = pred_lgb_blend(x.loc[x.index[idx], :])
     error_train = y[idx] - raw_pred_train
-    error_gbm = train_lgb(x.loc[x.index[idx]], error_train, get_params(p.lgb_month, 'reg'))
+    error_gbm = train_lgb(x.loc[x.index[idx]], error_train, get_params(p.lgb_month_1, 'reg'))
 
     raw_pred_submit = pred_lgb_blend(prop_2016_lgb)
     error_pred_submit = error_gbm.predict(prop_2016_lgb)
@@ -2621,35 +2709,55 @@ def pred_train_mon_2step(rm_outlier_flag=False):
 
 def pred_2016_to_2017():
     mon_sets = ({'01'}, {'02'}, {'03'}, {'04'}, {'05'}, {'06'}, {'07'}, {'08'}, {'09'})
-    x = lgb_data_prep(train_x)
-    idx_2016 = (train_x['data_year'] == 2016).values
-    idx_2017 = (train_x['data_year'] == 2017).values
+    # x_raw, y = capfloor_outlier(train_x, train_y)
+    x_raw, y = rm_outlier(train_x, train_y)
+    # x_raw, y = train_x, train_y
+    x = lgb_data_prep(x_raw, p.class3_new_features, p.class3_rm_features)
+    x_step2 = lgb_data_prep(x_raw, keep_only_feature=p.step3_keep_only_feature)
+    idx_2016 = (x_raw['data_year'] == 2016).values
+    idx_2017 = (x_raw['data_year'] == 2017).values
     # get all year_error data
     raw_pred = pred_lgb_blend(x)
+
+    # gbms_step1 = train_gbms_blend(x, y, p.raw_lgb_2y)
+    # raw_pred = pred_lgb_blend(x, gbms_step1)
+    # raw_pred = pkl.load(open('final_pred/pred_step1_train.pkl', 'rb'))
     raw_pred = pd.Series(raw_pred, index=x.index)
 
     # train_test_split
-    train_2017_error_idx, val_2017_error_idx = train_test_split(train_x.index[idx_2017].values, stratify=train_x.loc[train_x.index[idx_2017], 'sale_month'], test_size=0.3, random_state=42)
+    train_2017_error_idx, val_2017_error_idx = train_test_split(x_raw.index[idx_2017].values, stratify=x_raw.loc[x_raw.index[idx_2017], 'sale_month'], test_size=0.3, random_state=42)
 
-    pred_year = pd.Series(np.zeros(np.sum(idx_2017)), index=train_x.index[idx_2017])  # error after month training for 2017
+    pred_year = pd.Series(np.zeros(np.sum(idx_2017)), index=x_raw.index[idx_2017])  # error after month training for 2017
+    pred_year_2017_month_all = {}
     for mon_set in mon_sets:
         print('processing month set: %s' % str(mon_set))
-        idx_2016_month = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), idx_2016)
-        idx_2017_month = np.logical_and(train_x['sale_month'].apply(lambda x: x in mon_set), idx_2017)
+        idx_2016_month = x_step2.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), idx_2016)]
+        idx_2017_month = x_step2.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), idx_2017)]
         error_2016 = train_y[idx_2016_month] - raw_pred[idx_2016_month]
-        error_gbm = train_lgb(x.loc[x.index[idx_2016_month], :], error_2016, get_params(p.lgb_month_1, 'reg'))
+        error_gbm = train_lgb(x_step2.loc[idx_2016_month, :], error_2016, get_params(p.lgb_month_1, 'reg'))
         print('before month train error median: %.7f' % np.median(train_y[idx_2017_month] - raw_pred[idx_2017_month]))
-        error_2017_pred = error_gbm.predict(x.loc[x.index[idx_2017_month], :])
+        error_2017_pred = error_gbm.predict(x_step2.loc[idx_2017_month, :])
         pred_year_2017_month = raw_pred[idx_2017_month] + error_2017_pred
+        pred_year_2017_month_all[str(mon_set)] = pred_year_2017_month
         print('after month train error median: %.7f' % np.median(train_y[idx_2017_month] - pred_year_2017_month))
         # validation set error median after month train
-        val_idx_month = val_2017_error_idx[train_x.loc[val_2017_error_idx, 'sale_month'].apply(lambda x: x in mon_set)]
+        val_idx_month = val_2017_error_idx[x_raw.loc[val_2017_error_idx, 'sale_month'].apply(lambda x: x in mon_set)]
         print('after month train validation error median: %.7f' % np.median(train_y[val_idx_month] - pred_year_2017_month[val_idx_month]))
         pred_year[idx_2017_month] = pred_year_2017_month
 
-    error_year = train_2017_y - pred_year
-    pkl.dump(error_year, open('error_after_month_train_2017.pkl', 'wb'))
-
+    # error_year = train_2017_y - pred_year
+    # # pkl.dump(error_year, open('error_after_month_train_2017.pkl', 'wb'))
+    #
+    # # adj for year
+    # x_year_error = lgb_data_prep(x_raw, keep_only_feature=('2y_diff_dollar_taxvalue_total', '2y_diff_dollar_taxvalue_land', '2y_diff_dollar_taxvalue_structure'))
+    # error_year_train = error_year[train_2017_error_idx]
+    # x_year_error_train = x_year_error.loc[train_2017_error_idx, :]
+    # gbm_year_error = train_lgb(x_year_error_train, error_year_train, get_params(p.lgb_year_1, 'reg'))
+    # for mon_set in mon_sets:
+    #     val_idx_month = val_2017_error_idx[x_raw.loc[val_2017_error_idx, 'sale_month'].apply(lambda x: x in mon_set)]
+    #     val_month_year_adj = gbm_year_error.predict(x_year_error.loc[val_idx_month, :])
+    #     val_month_pred_error = train_y[val_idx_month] - pred_year_2017_month_all[str(mon_set)][val_idx_month] - val_month_year_adj
+    #     print('%s after year train validation error median: %.7f' % (str(mon_set), np.median(val_month_pred_error)))
 
 
 def train_mon_2step_batch_run():
@@ -2657,8 +2765,17 @@ def train_mon_2step_batch_run():
         train_mon_2step(mon_set)
 
 
+def train_gbms_blend(train_x, train_y, params):
+    # print('re-train lgb blending')
+    gbms = []
+    for param in params:
+        gbms.append(train_lgb(train_x, train_y, get_params(param, 'reg')))
+    return gbms
+
+
 def pred_lgb_blend(test_x, gbms=None):
     if not gbms:
+        print('load gbm from local')
         gbms = pkl.load(open('raw_lgb_blending.pkl', 'rb'))
     raw_pred = []
     for gbm in gbms:
