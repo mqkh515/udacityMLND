@@ -778,7 +778,6 @@ def property_cleaning_v2(prop_data):
     clear_cat_col_group('type_construction', ['11'])
     clear_cat_col_group('type_landuse', ['270', '279'])
 
-
     # num_garage and area_garage not consistent
     mark_idx = prop_data.index[np.logical_and(np.abs(prop_data['area_garage'] - 0) < 1e-12, prop_data['num_garage'] > 0)]
     sub_df = prop_data.loc[mark_idx, ['area_garage', 'num_garage']]
