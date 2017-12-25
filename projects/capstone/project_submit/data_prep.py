@@ -100,7 +100,11 @@ def prep_for_lgb(data):
     for col in data.columns:
         if col in feature_info.index and feature_info.loc[col, 'type'] == 'cat':
             data.loc[data.index[data[col].isnull()], col] = 'nan'
-            uni_vals = np.sort(data[col].unique()).tolist()
+            try:
+                uni_vals = np.sort(data[col].unique()).tolist()
+            except:
+                print('sort exception col processing: %s' % col)
+                continue
             map = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
             col_new = col + '_lgb'
             data[col_new] = data[col].apply(lambda x: map[x])
@@ -144,6 +148,9 @@ def property_cleaning(prop_data):
     # num_fireplace (if any)
     col_fill_na('num_fireplace', '0')
 
+    # num_34_batchroom, min value is 1, use 0 for na
+    col_fill_na('num_34_bathroom', '0')
+
     # area_pool to be made consistent with flag_pool
     prop_data.loc[prop_data.index[prop_data['flag_pool'] == 'FALSE'], 'area_pool'] = 0
 
@@ -156,15 +163,6 @@ def create_prop_data():
     prop_2017 = pd.read_csv('data/properties_2017.csv', low_memory=False)
     prop_2017.index = prop_2017['parcelid']
 
-    def size_control(data):
-        data.loc[:, ['latitude', 'longitude']] = data.loc[:, ['latitude', 'longitude']] / 1e6
-        for col in data.columns:
-            if data[col].dtype == np.float64:
-                data.loc[:, col] = data[col].astype(np.float32)
-
-    size_control(prop_2016)
-    size_control(prop_2017)
-
     # make sure prediction index order is inline with expected submission index order
     prop_2016 = prop_2016.loc[sub_index, :]
     prop_2017 = prop_2017.loc[sub_index, :]
@@ -175,10 +173,10 @@ def create_prop_data():
     property_cleaning(prop_2016)
     property_cleaning(prop_2017)
 
+    # combine 2016 and 2017 data, create consistent coding for categorical variables
     n_row_prop_2016 = prop_2016.shape[0]
     n_row_prop_2017 = prop_2017.shape[0]
     prop_join = pd.concat([prop_2016, prop_2017], axis=0)
-
     prep_for_lgb(prop_join)
     prop_2016 = prop_join.iloc[list(range(n_row_prop_2016)), :]
     prop_2017 = prop_join.iloc[list(range(n_row_prop_2016, n_row_prop_2016 + n_row_prop_2017)), :]
@@ -192,10 +190,6 @@ def create_prop_data():
     col_diff_dollar_taxvalue_structure = prop_2017['dollar_taxvalue_structure'] / prop_2016['dollar_taxvalue_structure']
     prop_2016['2y_diff_dollar_taxvalue_structure'] = col_diff_dollar_taxvalue_structure
     prop_2017['2y_diff_dollar_taxvalue_structure'] = col_diff_dollar_taxvalue_structure
-
-    for f in p.class3_new_features:
-        features.feature_factory(f, prop_2016)
-        features.feature_factory(f, prop_2017)
 
     return prop_2016, prop_2017
 
@@ -217,8 +211,8 @@ prop_2016, prop_2017 = load_prop_data()
 def load_train_data(prop_2016, prop_2017):
     """if engineered features exists, it should be performed at prop_data level, and then join to error data"""
     if not os.path.exists('data/train_x.pkl') or not os.path.exists('data/train_y.pkl'):
-        train_2016 = pd.read_csv('data/train_2016_v2.csv')
-        train_2017 = pd.read_csv('data/train_2017.csv')
+        train_2016 = pd.read_csv('data/train_2016_v2.csv', parse_dates=['transactiondate'], low_memory=False)
+        train_2017 = pd.read_csv('data/train_2017.csv', parse_dates=['transactiondate'], low_memory=False)
 
         train_2016 = pd.merge(train_2016, prop_2016, how='left', on='parcelid')
         train_2016['data_year'] = 2016
@@ -227,7 +221,14 @@ def load_train_data(prop_2016, prop_2017):
 
         train = pd.concat([train_2016, train_2017], axis=0)
         train.index = list(range(train.shape[0]))
-        train['sale_month'] = train['transactiondate'].apply(lambda x: x.split('-')[1])  # get error data transaction date to month
+
+        # sale time variables creation
+        train['sale_year'] = train['transactiondate'].dt.year
+        train['sale_month'] = train['transactiondate'].dt.month
+        train['sale_month'] = train['sale_month'].apply(lambda x: x if x <= 10 else 10)
+        train['sale_quarter'] = train['transactiondate'].dt.quarter
+        train.drop(['transactiondate'], inplace=True, axis=1)
+
         train_y = train['logerror']
         train_x = train.drop('logerror', axis=1)
         pkl.dump(train_x, open('data/train_x.pkl', 'wb'))
@@ -239,15 +240,4 @@ def load_train_data(prop_2016, prop_2017):
 
 
 train_x, train_y = load_train_data(prop_2016, prop_2017)
-
-
-def load_train_data_year(year):
-    idx = (train_x['data_year'] == year).values
-    x_year = train_x.loc[train_x.index[idx], :].copy()
-    y_year = train_y[idx]
-    return x_year, y_year
-
-
-train_2017_x, train_2017_y = load_train_data_year(2017)
-train_2016_x, train_2016_y = load_train_data_year(2016)
 
