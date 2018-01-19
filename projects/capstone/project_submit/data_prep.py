@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
 import pickle as pkl
-import params as p
-import features
 from features import cat_num_to_str
 import os
 
@@ -10,35 +8,6 @@ import os
 feature_info = pd.read_csv('data/feature_info.csv', index_col='new_name')
 nmap_orig_to_new = dict(zip(feature_info['orig_name'].values, feature_info.index.values))
 nmap_new_to_orig = dict(zip(feature_info.index.values, feature_info['orig_name'].values))
-
-
-def lgb_data_prep(data, new_features=tuple(), rm_features=tuple(), keep_only_feature=()):
-    keep_feature = list(feature_info.index.values)
-    feature_info_copy = keep_feature.copy()
-
-    for col in feature_info_copy:
-        if col in feature_info.index and feature_info.loc[col, 'type'] == 'cat' and col in keep_feature:
-            keep_feature.remove(col)
-            keep_feature.append(col + '_lgb')
-        if col in feature_info.index and feature_info.loc[col, 'type'] == 'none' and col in keep_feature:
-            keep_feature.remove(col)
-
-    for f in new_features:
-        if f not in keep_feature:
-            keep_feature.append(f)
-
-    for col in rm_features:
-         if col in keep_feature:
-             keep_feature.remove(col)
-
-    for col in ['num_bathroom_assessor', 'code_county', 'area_living_finished_calc', 'area_firstfloor_assessor']:
-        if col in keep_feature:
-            keep_feature.remove(col)
-
-    if len(keep_only_feature) > 0:
-        keep_feature = list(keep_only_feature)
-
-    return data[keep_feature]
 
 
 def property_trans(prop_data):
@@ -224,8 +193,8 @@ def load_train_data(prop_2016, prop_2017):
 
         # sale time variables creation
         train['sale_year'] = train['transactiondate'].dt.year
-        train['sale_month'] = train['transactiondate'].dt.month
-        train['sale_month'] = train['sale_month'].apply(lambda x: x if x <= 10 else 10)
+        train['sale_month_orig'] = train['transactiondate'].dt.month
+        train['sale_month'] = train['sale_month_orig'].apply(lambda x: x if x <= 10 else 10)
         train['sale_quarter'] = train['transactiondate'].dt.quarter
         train.drop(['transactiondate'], inplace=True, axis=1)
 
