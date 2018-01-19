@@ -30,6 +30,7 @@ def class_3_var_rank():
             if num_var == num_vars[0]:
                 new_features.append(num_var + '__groupby__' + var_class3 + '__count')
             new_features.append(num_var + '__groupby__' + var_class3 + '__mean')
+        new_features.append(var_class3 + '_lgb')
 
         train_x, train_y = z.load_train_data(z.prop_2016, z.prop_2017, new_features)
         x_raw, y = z.capfloor_outlier(train_x, train_y)
@@ -37,8 +38,11 @@ def class_3_var_rank():
         gbm = z.train_lgb(x, y, z.get_params(p.raw_lgb_2y_1, 'reg'))
         feature_list, feature_rank = z.feature_importance(gbm, None, False)
 
-        new_features.append(var_class3)
         idx = np.array([True if f in new_features else False for f in feature_list])
         out_df = pd.DataFrame({'feature': feature_list[idx], 'rank': feature_rank[idx]})
         out_df.to_csv('class3_research/%s.csv' % var_class3, index=False)
+
+
+if __name__ == '__main__':
+    class_3_var_rank()
 
