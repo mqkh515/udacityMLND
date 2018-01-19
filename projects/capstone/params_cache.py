@@ -133,6 +133,8 @@ lgb_month_3 = {'num_leaves': 7,
              'learning_rate': 0.004607,
              'num_boosting_rounds': 320}
 
+p.lgb_month_mon10 = []
+
 
 lgb_month_4 = {'num_leaves': 7,
              'min_data_in_leaf': 37,

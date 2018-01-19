@@ -1265,6 +1265,7 @@ def convert_cat_col_single(data, col):
     data[col_new] = data[col_new].astype('category')
 
 
+
 def lgb_data_prep(data, new_features=tuple(), rm_features=tuple(), keep_only_feature=()):
     keep_feature = list(feature_info.index.values)
     feature_info_copy = keep_feature.copy()
@@ -2656,6 +2657,10 @@ def train_mon_2step(mon_set):
     idx_2016 = x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), x_raw['data_year'] == 2016)]
     idx_2017 = x_raw.index[np.logical_and(x_raw['sale_month'].apply(lambda x: x in mon_set), x_raw['data_year'] == 2017)]
 
+
+    # raw_pred_2016 = pred_lgb_blend(x.loc[x.index[idx_2016], :])
+    # raw_pred_2017 = pred_lgb_blend(x.loc[x.index[idx_2017], :])
+
     # raw_pred_2016 = pred_lgb_blend(x_step1.loc[x_raw.index[idx_2016], :])
     # raw_pred_2017 = pred_lgb_blend(x_step1.loc[x_raw.index[idx_2017], :])
 
@@ -2711,9 +2716,11 @@ def pred_2016_to_2017():
     idx_2016 = (x_raw['data_year'] == 2016).values
     idx_2017 = (x_raw['data_year'] == 2017).values
     # get all year_error data
+    raw_pred = pred_lgb_blend(x)
+
     # gbms_step1 = train_gbms_blend(x, y, p.raw_lgb_2y)
     # raw_pred = pred_lgb_blend(x, gbms_step1)
-    raw_pred = pkl.load(open('final_pred/pred_step1_train.pkl', 'rb'))
+    # raw_pred = pkl.load(open('final_pred/pred_step1_train.pkl', 'rb'))
     raw_pred = pd.Series(raw_pred, index=x.index)
 
     # train_test_split
