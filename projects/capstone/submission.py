@@ -391,10 +391,6 @@ def load_train_data(prop_2016, prop_2017):
     return train_x, train_y
 
 
-prop_2016, prop_2017 = load_prop_data()
-train_x, train_y = load_train_data(prop_2016, prop_2017)
-
-
 # --------------------------------------------------------- model train and predict ------------------------------------------------------------
 def rm_outlier(x, y):
     idx = np.logical_and(y < 0.7566, y > -0.4865)  # outlier bounds are determined by quantiles, and then hard coded here
@@ -529,11 +525,6 @@ def lgb_pred_func():
 
     return pred_2016, pred_2017
 
-pred_2016_lgb, pred_2017_lgb = lgb_pred_func()
-make_submission(pred_2016_lgb, pred_2017_lgb, 'final_lgb')
-
-del prop_2016, prop_2017, train_x, train_y
-gc.collect()
 
 # ------------------------------------------------------------ CatBoost prediction -----------------------------------------------------------------
 # this essentially uses the script from the published kernel: https://www.kaggle.com/abdelwahedassklou/only-cat-boost-lb-0-0641-939
@@ -699,29 +690,38 @@ def catboost_pred_func():
 
     return y_pred_2016_10, y_pred_2017_10
 
-pred_2016_catboost, pred_2017_catboost = catboost_pred_func()
-make_submission(pred_2016_catboost, pred_2017_catboost, 'final_catboost')
 
-
-def blend_submission(f1, f2, label):
-    pred1 = pd.read_csv('data/%s.csv.gz' % f1, header=0, compression='gzip')
-    pred2 = pd.read_csv('data/%s.csv.gz' % f2, header=0, compression='gzip')
+def blend_submission(fs, label):
+    preds = [pd.read_csv('data/%s.csv.gz' % f, header=0, compression='gzip') for f in fs]
     columns = ['ParcelId', '201610', '201611', '201612', '201710', '201711', '201712']
-    pred1 = pred1.loc[:, columns]
-    pred2 = pred2.loc[:, columns]
-    pred = (pred1 + pred2) / 2
+    for p in preds:
+        p = p.loc[:, columns]
+    pred = None
+    for p in preds:
+        if pred is None:
+            pred = p
+        else:
+            pred += p
+    pred /= len(fs)
     pred['ParcelId'] = pred['ParcelId'].astype(int)
     pred.to_csv('data/%s.csv.gz' % label, index=False, float_format='%.7f', compression='gzip')
 
 
-# pred_2016 = (pred_2016_catboost + pred_2016_lgb) / 2
-# pred_2017 = (pred_2017_catboost + pred_2017_lgb) / 2
-#
-# make_submission(pred_2016, pred_2017, 'final')
+if __name__ == '__main__':
+    prop_2016, prop_2017 = load_prop_data()
+    train_x, train_y = load_train_data(prop_2016, prop_2017)
 
+    pred_2016_lgb, pred_2017_lgb = lgb_pred_func()
+    make_submission(pred_2016_lgb, pred_2017_lgb, 'final_lgb')
 
-# blend submission from intermediate csv files will produce exactly the same output as my chosen submission, as there is an application of  7-digits precision
-# directly do numerical average as above will introduce some difference at scale of 1e-7.
-blend_submission('submission_final_lgb', 'submission_final_catboost', 'submission_final')
+    del prop_2016, prop_2017, train_x, train_y
+    gc.collect()
+
+    pred_2016_catboost, pred_2017_catboost = catboost_pred_func()
+    make_submission(pred_2016_catboost, pred_2017_catboost, 'final_catboost')
+
+    # blend submission from intermediate csv files will produce exactly the same output as my chosen submission, as there is an application of  7-digits precision
+    # directly do numerical average as above will introduce some difference at scale of 1e-7.
+    blend_submission(['submission_final_lgb', 'submission_final_catboost'], 'submission_final')
 
 
