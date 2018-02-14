@@ -72,7 +72,7 @@ def prep_for_lgb(data):
             try:
                 uni_vals = np.sort(data[col].unique()).tolist()
             except:
-                print('sort exception col processing: %s' % col)
+                print('sort exception, col processing: %s' % col)
                 continue
             map = dict(zip(uni_vals, list(range(1, len(uni_vals) + 1))))
             col_new = col + '_lgb'
@@ -150,16 +150,6 @@ def create_prop_data():
     prop_2016 = prop_join.iloc[list(range(n_row_prop_2016)), :]
     prop_2017 = prop_join.iloc[list(range(n_row_prop_2016, n_row_prop_2016 + n_row_prop_2017)), :]
 
-    col_diff_dollar_taxvalue_total = prop_2017['dollar_taxvalue_total'] / prop_2016['dollar_taxvalue_total']
-    prop_2016['2y_diff_dollar_taxvalue_total'] = col_diff_dollar_taxvalue_total
-    prop_2017['2y_diff_dollar_taxvalue_total'] = col_diff_dollar_taxvalue_total
-    col_diff_dollar_taxvalue_land = prop_2017['dollar_taxvalue_land'] / prop_2016['dollar_taxvalue_land']
-    prop_2016['2y_diff_dollar_taxvalue_land'] = col_diff_dollar_taxvalue_land
-    prop_2017['2y_diff_dollar_taxvalue_land'] = col_diff_dollar_taxvalue_land
-    col_diff_dollar_taxvalue_structure = prop_2017['dollar_taxvalue_structure'] / prop_2016['dollar_taxvalue_structure']
-    prop_2016['2y_diff_dollar_taxvalue_structure'] = col_diff_dollar_taxvalue_structure
-    prop_2017['2y_diff_dollar_taxvalue_structure'] = col_diff_dollar_taxvalue_structure
-
     return prop_2016, prop_2017
 
 
@@ -193,8 +183,7 @@ def load_train_data(prop_2016, prop_2017):
 
         # sale time variables creation
         train['sale_year'] = train['transactiondate'].dt.year
-        train['sale_month_orig'] = train['transactiondate'].dt.month
-        train['sale_month'] = train['sale_month_orig'].apply(lambda x: x if x <= 10 else 10)
+        train['sale_month'] = train['transactiondate'].dt.month
         train['sale_quarter'] = train['transactiondate'].dt.quarter
         train.drop(['transactiondate'], inplace=True, axis=1)
 
