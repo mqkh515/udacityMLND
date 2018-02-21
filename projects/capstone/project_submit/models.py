@@ -1,5 +1,5 @@
 import numpy as np
-import data_prep
+import params
 
 
 def median_model(train_x, train_y, test_x):

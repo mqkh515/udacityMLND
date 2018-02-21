@@ -40,6 +40,7 @@ def cv_month(x, y, model_func, months_set={7, 8, 9}, n_folds=5):
     np.random.seed(7)
 
 
+
 def cv_year(x, y, model_func, months_set={7, 8, 9}, n_folds=5):
     """testing set is created to mimic private LB behavior, i.e.  a quarter out of months 1 ~ 9, keep part of 2016-months-set data in training, discard the rest, and use all 2017-months-set data in testing"""
     np.random.seed(7)
