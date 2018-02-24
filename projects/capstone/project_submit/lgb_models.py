@@ -7,6 +7,18 @@ import lightgbm as lgb
 feature_info = pd.read_csv('data/feature_info.csv', index_col='new_name')
 
 
+PARAMS = {
+    'boosting_type': 'gbdt',
+    'feature_fraction': 0.95,
+    'bagging_fraction': 0.8,
+    'bagging_freq': 5,
+    'verbosity': 0,
+    'lambda_l2': 0,
+    'objective': 'regression_l1',
+    'metric': {'l1'}
+}
+
+
 def lgb_model_prep(data, new_features=tuple(), rm_features=tuple(), keep_only_feature=()):
     keep_feature = list(feature_info.index.values)
     feature_info_copy = keep_feature.copy()
@@ -36,19 +48,15 @@ def lgb_model_prep(data, new_features=tuple(), rm_features=tuple(), keep_only_fe
     return data[keep_feature]
 
 
+def merge_months(data):
+    data['sale_month'] = data['sale_month'].apply(lambda x: x if x < 10 else 10)
+    
+
+
 def param_search_lgb_random(train_x, train_y, label='', n_iter=100, min_data_in_leaf_range=(100, 600), num_leaf_range=(30, 80)):
     """random param search. only search for min_data_in_leaf, num_leaf_range and learning rate, L2 norm is set to zero as min_data_in_leaf acts on the same target as L2 coef."""
     np.random.seed(7)
-    params = {
-        'boosting_type': 'gbdt',
-        'feature_fraction': 0.95,
-        'bagging_fraction': 0.8,
-        'bagging_freq': 5,
-        'verbosity': 0,
-        'lambda_l2': 0,
-        'objective': 'regression_l1',
-        'metric': {'l1'}
-        }
+    params = PARAMS.copy()
     lgb_train = lgb.Dataset(train_x, train_y)
     metric = list(params['metric'])[0]
     columns = ['%s-mean' % metric, '%s-stdv' % metric, 'n_rounds', 'num_leaves', 'min_data_in_leaf', 'learning_rate']
@@ -84,13 +92,25 @@ def param_search_lgb_random(train_x, train_y, label='', n_iter=100, min_data_in_
     res_df.to_csv('param_search/lgb_random_%s.csv' % label, index=False)
 
 
-def param_search_runner():
+def train_lgb(train_x, train_y, params_inp):
+    lgb_train = lgb.Dataset(train_x, train_y)
+    params = params_inp.copy()
+    num_boost_round = params.pop('num_boosting_rounds')
+    gbm = lgb.train(params, lgb_train, num_boost_round=num_boost_round)
+    return gbm
+
+
+def param_search_raw():
     train_x = lgb_model_prep(data_prep.train_x)
     param_search_lgb_random(train_x, data_prep.train_y, 'raw')
 
 
+def param_search_step2():
+    pass
+
+
 if __name__ == '__main__':
-    param_search_runner()
+    param_search_raw()
 
 
 

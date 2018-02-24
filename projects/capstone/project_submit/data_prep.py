@@ -1,13 +1,18 @@
 import pandas as pd
 import numpy as np
 import pickle as pkl
-from features import cat_num_to_str
 import os
 
 
 feature_info = pd.read_csv('data/feature_info.csv', index_col='new_name')
 nmap_orig_to_new = dict(zip(feature_info['orig_name'].values, feature_info.index.values))
 nmap_new_to_orig = dict(zip(feature_info.index.values, feature_info['orig_name'].values))
+
+
+def cat_num_to_str(data, col_name):
+    """for numeric-like categorical varible, transform to string, keep nan"""
+    if not data[col_name].dtype == 'O':
+        data.loc[:, col_name] = data[col_name].apply(lambda x: str(int(x)) if not np.isnan(x) else np.nan)
 
 
 def property_trans(prop_data):
@@ -167,9 +172,9 @@ def load_prop_data():
 prop_2016, prop_2017 = load_prop_data()
 
 
-def load_train_data(prop_2016, prop_2017):
+def load_train_data(prop_2016, prop_2017, recalc=False, force_dump=False):
     """if engineered features exists, it should be performed at prop_data level, and then join to error data"""
-    if not os.path.exists('data/train_x.pkl') or not os.path.exists('data/train_y.pkl'):
+    if not os.path.exists('data/train_x.pkl') or not os.path.exists('data/train_y.pkl') or recalc:
         train_2016 = pd.read_csv('data/train_2016_v2.csv', parse_dates=['transactiondate'], low_memory=False)
         train_2017 = pd.read_csv('data/train_2017.csv', parse_dates=['transactiondate'], low_memory=False)
 
@@ -189,13 +194,14 @@ def load_train_data(prop_2016, prop_2017):
 
         train_y = train['logerror']
         train_x = train.drop('logerror', axis=1)
-        pkl.dump(train_x, open('data/train_x.pkl', 'wb'))
-        pkl.dump(train_y, open('data/train_y.pkl', 'wb'))
+        if force_dump:
+            pkl.dump(train_x, open('data/train_x.pkl', 'wb'))
+            pkl.dump(train_y, open('data/train_y.pkl', 'wb'))
     else:
         train_x = pkl.load(open('data/train_x.pkl', 'rb'))
         train_y = pkl.load(open('data/train_y.pkl', 'rb'))
     return train_x, train_y
 
 
-train_x, train_y = load_train_data(prop_2016, prop_2017)
+train_x, train_y = load_train_data(prop_2016, prop_2017, True, True)
 
