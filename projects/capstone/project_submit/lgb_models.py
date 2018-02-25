@@ -48,11 +48,6 @@ def lgb_model_prep(data, new_features=tuple(), rm_features=tuple(), keep_only_fe
     return data[keep_feature]
 
 
-def merge_months(data):
-    data['sale_month'] = data['sale_month'].apply(lambda x: x if x < 10 else 10)
-    
-
-
 def param_search_lgb_random(train_x, train_y, label='', n_iter=100, min_data_in_leaf_range=(100, 600), num_leaf_range=(30, 80)):
     """random param search. only search for min_data_in_leaf, num_leaf_range and learning rate, L2 norm is set to zero as min_data_in_leaf acts on the same target as L2 coef."""
     np.random.seed(7)
@@ -107,6 +102,12 @@ def param_search_raw():
 
 def param_search_step2():
     pass
+
+
+def is_month_median_analysis(train_x, train_y, pred_train_y):
+    y_diff = train_y - pred_train_y
+    y_diff_median = y_diff.groupby(train_x['sale_month']).median()
+    print(y_diff_median)
 
 
 if __name__ == '__main__':

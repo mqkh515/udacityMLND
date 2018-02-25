@@ -15,8 +15,8 @@ def get_lb_rank(score, lb_type):
 
 class ModelBase(object):
     def __init__(self):
-        self.public_lb_score = None
-        self.private_lb_score = None
+        self.public_lb_score = 0.0
+        self.private_lb_score = 0.0
         self.model = None
 
     def train(self, train_x, train_y, dump_model=True, load_model=False):
@@ -37,8 +37,8 @@ class ModelBase(object):
         cv_avg = cv.cv_avg_stratified(data_prep.train_x, data_prep.train_y, self)
         cv_public_lb = cv.cv_public_lb(data_prep.train_x, data_prep.train_y, self)
         cv_private_lb = cv.cv_private_lb(data_prep.train_x, data_prep.train_y, self)
-        public_lb_rank = get_lb_rank(self.public_lb_score, 'public')
-        private_lb_rank = get_lb_rank(self.private_lb_score, 'private')
+        public_lb_rank = get_lb_rank(self.public_lb_score, 'public') if self.public_lb_score else 0
+        private_lb_rank = get_lb_rank(self.private_lb_score, 'private') if self.private_lb_score else 0
         return [cv_avg, cv_private_lb, cv_public_lb, self.public_lb_score, public_lb_rank, self.private_lb_score, private_lb_rank]
 
 
@@ -83,16 +83,22 @@ class ModelLGBRaw(ModelBase):
                        'learning_rate': 0.0062,
                        'num_boosting_rounds': 2250
                        }
+        # self.params = {'num_leaves': 35,
+        #                'min_data_in_leaf': 135,
+        #                'learning_rate': 0.002373,
+        #                'num_boosting_rounds': 10775
+        #                }
         self.public_lb_score = 0.0641573
         self.private_lb_score = 0.0750084
         self.added_features = []  # for FE
 
     def train(self, train_x, train_y, dump_model=True, load_model=False):
-        if load_model and os.path.exists('models/model_median.pkl'):
-            self.model = pkl.load(open('models/model_median.pkl', 'rb'))
+        if load_model and os.path.exists('models/model_lgb_raw.pkl'):
+            self.model = pkl.load(open('models/model_lgb_raw.pkl', 'rb'))
         else:
-            train_x['sale_month'] = train_x['sale_month'].apply(lambda x: x if x < 10 else 10)
-            train_x = lgb_models.lgb_model_prep(train_x, self.added_features + ['sale_month'])
+            train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x < 10 else 10)
+            train_x['sale_month_derive'] = train_x['sale_month_derive'].astype('category')
+            train_x = lgb_models.lgb_model_prep(train_x, self.added_features + ['sale_month_derive'])
             params = lgb_models.PARAMS.copy()
             params.update(self.params)
             self.model = lgb_models.train_lgb(train_x, train_y, params)
@@ -100,7 +106,9 @@ class ModelLGBRaw(ModelBase):
                 pkl.dump(self.model, open('models/model_lgb_raw.pkl', 'wb'))
 
     def predict(self, test_x):
-        test_x = lgb_models.lgb_model_prep(test_x, self.added_features + ['sale_month'])
+        test_x['sale_month_derive'] = test_x['sale_month'].apply(lambda x: x if x < 10 else 10)
+        test_x['sale_month_derive'] = test_x['sale_month_derive'].astype('category')
+        test_x = lgb_models.lgb_model_prep(test_x, self.added_features + ['sale_month_derive'])
         return self.model.predict(test_x)
 
     def submit(self):
@@ -125,4 +133,12 @@ class ModelLGBRaw(ModelBase):
         df['201711'] = pred_2017
         df['201712'] = pred_2017
         df.to_csv('data/submission_model_lgb_raw.csv.gz', index=False, float_format='%.7f', compression='gzip')
+
+
+def mon_research(m):
+    m.train(data_prep.train_x, data_prep.train_y, False)
+    pred_is_y = m.predict(data_prep.train_x)
+    y_diff = pred_is_y - data_prep.train_y
+    y_diff_median = y_diff.groupby(data_prep.train_x['sale_month_derive']).median()
+    print(y_diff_median)
 

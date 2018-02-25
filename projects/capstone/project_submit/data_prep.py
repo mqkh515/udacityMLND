@@ -169,7 +169,8 @@ def load_prop_data():
     return prop_2016, prop_2017
 
 
-prop_2016, prop_2017 = load_prop_data()
+# prop_2016, prop_2017 = load_prop_data()
+prop_2016, prop_2017 = None, None
 
 
 def load_train_data(prop_2016, prop_2017, recalc=False, force_dump=False):
@@ -203,5 +204,5 @@ def load_train_data(prop_2016, prop_2017, recalc=False, force_dump=False):
     return train_x, train_y
 
 
-train_x, train_y = load_train_data(prop_2016, prop_2017, True, True)
+train_x, train_y = load_train_data(prop_2016, prop_2017, False, True)
 
