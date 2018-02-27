@@ -6,6 +6,7 @@ import lgb_models
 import pickle as pkl
 import os
 import gc
+import params
 
 
 def get_lb_rank(score, lb_type):
@@ -13,21 +14,86 @@ def get_lb_rank(score, lb_type):
     return df['rank'].values[np.searchsorted(df['score'].values, score)]
 
 
+
+def submit_sep_month(model):
+    submission = pd.read_csv('data/sample_submission.csv', header=0)
+    df = pd.DataFrame()
+    df['ParcelId'] = submission['ParcelId']
+    if model.model is None:
+        model.train(data_prep.train_x, data_prep.train_y)
+    prop_2016 = data_prep.prop_2016.copy()
+    for m in [10, 11, 12]:
+        prop_2016['sale_month'] = m
+        pred_2016 = model.predict(prop_2016)
+        k = '2016' + str(m)
+        df[k] = pred_2016
+    del prop_2016
+    gc.collect()
+    prop_2017 = data_prep.prop_2017.copy()
+    for m in [10, 11, 12]:
+        prop_2017['sale_month'] = m
+        pred_2017 = model.predict(prop_2017)
+        k = '2017' + str(m)
+        df[k] = pred_2017
+    df.to_csv('data/submission_model_%s.csv.gz' % model.label, index=False, float_format='%.7f', compression='gzip')
+
+
+def submit_combine_month(model):
+    """combine month for raw lgb, let's make this faster"""
+    submission = pd.read_csv('data/sample_submission.csv', header=0)
+    df = pd.DataFrame()
+    df['ParcelId'] = submission['ParcelId']
+    if model.model is None:
+        model.train(data_prep.train_x, data_prep.train_y)
+    prop_2016 = data_prep.prop_2016.copy()
+    prop_2016['sale_month'] = 10
+    pred_2016 = model.predict(prop_2016)
+    df['201610'] = pred_2016
+    df['201611'] = pred_2016
+    df['201612'] = pred_2016
+    del prop_2016
+    gc.collect()
+    prop_2017 = data_prep.prop_2017.copy()
+    prop_2017['sale_month'] = 10
+    pred_2017 = model.predict(prop_2017)
+    df['201710'] = pred_2017
+    df['201711'] = pred_2017
+    df['201712'] = pred_2017
+    df.to_csv('data/submission_model_%s.csv.gz' % model.label, index=False, float_format='%.7f', compression='gzip')
+
+
 class ModelBase(object):
     def __init__(self):
         self.public_lb_score = 0.0
         self.private_lb_score = 0.0
         self.model = None
+        self.label = ''
+        self.outlier_handling = None
 
     def train(self, train_x, train_y, dump_model=True, load_model=False):
+        if load_model and os.path.exists('models/model_%s.pkl' % self.label):
+            self.model = pkl.load(open('models/model_%s.pkl' % self.label, 'rb'))
+        else:
+            if self.outlier_handling:
+                train_x, train_y = self.outlier_handling(train_x, train_y)  # key line, remove outliers before training
+            self.train_inner(train_x, train_y)
+            if dump_model:
+                pkl.dump(self.model, open('models/model_%s.pkl' % self.label, 'wb'))
+
+    def train_inner(self, train_x, train_y):
         pass
 
     def predict(self, test_x):
         pass
 
+    def cv_prep(self, train_x):
+        pass
+
     def cv(self, train_x, train_y, test_x):
         model_backup = self.model
+        self.cv_prep(train_x)
         self.train(train_x, train_y, False, False)
+        self.cv_prep(test_x)
         pred = self.predict(test_x)
         self.model = model_backup
         return pred
@@ -41,25 +107,25 @@ class ModelBase(object):
         private_lb_rank = get_lb_rank(self.private_lb_score, 'private') if self.private_lb_score else 0
         return [cv_avg, cv_private_lb, cv_public_lb, self.public_lb_score, public_lb_rank, self.private_lb_score, private_lb_rank]
 
+    def submit(self):
+        submit_sep_month(self)
+
 
 class ModelMedian(ModelBase):
     def __init__(self):
         ModelBase.__init__(self)
         self.public_lb_score = 0.0653607
         self.private_lb_score = 0.0763265
+        self.label = 'median'
 
-    def train(self, train_x, train_y, dump_model=True, load_model=False):
-        if load_model and os.path.exists('models/model_median.pkl'):
-            self.model = pkl.load(open('models/model_median.pkl', 'rb'))
-        else:
-            self.model = train_y.median()
-            if dump_model:
-                pkl.dump(self.model, open('models/model_median.pkl', 'wb'))
+    def train_inner(self, train_x, train_y):
+        self.model = train_y.median()
 
     def predict(self, test_x):
         return np.ones(test_x.shape[0]) * self.model
 
     def submit(self):
+        """much simpler implementation"""
         submission = pd.read_csv('data/sample_submission.csv', header=0)
         df = pd.DataFrame()
         df['ParcelId'] = submission['ParcelId']
@@ -72,73 +138,112 @@ class ModelMedian(ModelBase):
         df['201710'] = median_pred
         df['201711'] = median_pred
         df['201712'] = median_pred
-        df.to_csv('data/submission_model_median.csv.gz', index=False, float_format='%.7f', compression='gzip')
+        df.to_csv('data/submission_model_%s.csv.gz' % self.label, index=False, float_format='%.7f', compression='gzip')
 
 
 class ModelLGBRaw(ModelBase):
     def __init__(self):
         ModelBase.__init__(self)
-        self.params = {'num_leaves': 76,
-                       'min_data_in_leaf': 168,
-                       'learning_rate': 0.0062,
-                       'num_boosting_rounds': 2250
-                       }
-        # self.params = {'num_leaves': 35,
-        #                'min_data_in_leaf': 135,
-        #                'learning_rate': 0.002373,
-        #                'num_boosting_rounds': 10775
-        #                }
-        self.public_lb_score = 0.0641573
-        self.private_lb_score = 0.0750084
-        self.added_features = []  # for FE
+        self.params = params.lgb_raw
+        self.public_lb_score = 0.0643716
+        self.private_lb_score = 0.0752874
+        self.added_features = []
+        self.rm_features = []
+        self.keep_only_features = []
+        self.label = 'lgb_raw'
 
-    def train(self, train_x, train_y, dump_model=True, load_model=False):
-        if load_model and os.path.exists('models/model_lgb_raw.pkl'):
-            self.model = pkl.load(open('models/model_lgb_raw.pkl', 'rb'))
-        else:
-            train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x < 10 else 10)
-            train_x['sale_month_derive'] = train_x['sale_month_derive'].astype('category')
-            train_x = lgb_models.lgb_model_prep(train_x, self.added_features + ['sale_month_derive'])
-            params = lgb_models.PARAMS.copy()
-            params.update(self.params)
-            self.model = lgb_models.train_lgb(train_x, train_y, params)
-            if dump_model:
-                pkl.dump(self.model, open('models/model_lgb_raw.pkl', 'wb'))
+
+    def prep_added_features(self, train_x):
+        pass
+
+    def train_inner(self, train_x, train_y):
+        self.prep_added_features(train_x)
+        train_x = lgb_models.lgb_model_prep(train_x, self.added_features, self.rm_features, self.keep_only_features)
+        params = lgb_models.PARAMS.copy()
+        params.update(self.params)
+        self.model = lgb_models.train_lgb(train_x, train_y, params)
 
     def predict(self, test_x):
-        test_x['sale_month_derive'] = test_x['sale_month'].apply(lambda x: x if x < 10 else 10)
-        test_x['sale_month_derive'] = test_x['sale_month_derive'].astype('category')
-        test_x = lgb_models.lgb_model_prep(test_x, self.added_features + ['sale_month_derive'])
+        self.prep_added_features(test_x)
+        test_x = lgb_models.lgb_model_prep(test_x, self.added_features, self.rm_features, self.keep_only_features)
         return self.model.predict(test_x)
 
     def submit(self):
-        submission = pd.read_csv('data/sample_submission.csv', header=0)
-        df = pd.DataFrame()
-        df['ParcelId'] = submission['ParcelId']
-        if self.model is None:
-            self.train(data_prep.train_x, data_prep.train_y)
-        prop_2016 = data_prep.prop_2016.copy()
-        prop_2016['sale_month'] = 10
-        pred_2016 = self.predict(prop_2016)
-        df['201610'] = pred_2016
-        df['201611'] = pred_2016
-        df['201612'] = pred_2016
-        del prop_2016
-        gc.collect()
-
-        prop_2017 = data_prep.prop_2017.copy()
-        prop_2017['sale_month'] = 10
-        pred_2017 = self.predict(prop_2017)
-        df['201710'] = pred_2017
-        df['201711'] = pred_2017
-        df['201712'] = pred_2017
-        df.to_csv('data/submission_model_lgb_raw.csv.gz', index=False, float_format='%.7f', compression='gzip')
+        submit_combine_month(self)
 
 
-def mon_research(m):
-    m.train(data_prep.train_x, data_prep.train_y, False)
-    pred_is_y = m.predict(data_prep.train_x)
-    y_diff = pred_is_y - data_prep.train_y
-    y_diff_median = y_diff.groupby(data_prep.train_x['sale_month_derive']).median()
-    print(y_diff_median)
+class ModelLGBRawSubCol(ModelLGBRaw):
+    def __init__(self):
+        ModelLGBRaw.__init__(self)
+        self.public_lb_score = 0.0644800
+        self.private_lb_score = 0.0753710
+        self.rm_features = []
+        for col in list(lgb_models.feature_info.index.values):
+            if lgb_models.feature_info.loc[col, 'class'] in (3, 4):
+                col_name = col if lgb_models.feature_info.loc[col, 'type'] == 'num' else col + '_lgb'
+                self.rm_features.append(col_name)
+        self.label = 'lgb_raw_sub_col'
+
+
+class ModelLGBRawIncMon(ModelLGBRaw):
+    def __init__(self):
+        ModelLGBRaw.__init__(self)
+        self.public_lb_score = 0.0641573
+        self.private_lb_score = 0.0750084
+        self.added_features = ['sale_month_derive']
+        self.label = 'lgb_raw_inc_mon'
+
+    def prep_added_features(self, train_x):
+        train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x < 10 else 10)
+
+
+class ModelLGBRawIncMonOutlierRm(ModelLGBRawIncMon):
+    def __init__(self):
+        ModelLGBRawIncMon.__init__(self)
+        self.public_lb_score = 0.0641336
+        self.private_lb_score = 0.0749581
+        self.label = 'lgb_raw_inc_mon_outlier_rm'
+        self.outlier_handling = data_prep.rm_outlier
+
+
+class ModelLGBOneStep(ModelLGBRawIncMonOutlierRm):
+    def __init__(self):
+        ModelLGBRawIncMonOutlierRm.__init__(self)
+        self.public_lb_score = 0.0641632
+        self.private_lb_score = 0.0749579
+        self.added_features += params.class3_new_features
+        self.rm_features = params.class3_rm_features
+        self.label = 'lgb_1step'
+
+
+class ModelLGBTwoStep(ModelBase):
+    def __init__(self):
+        ModelBase.__init__(self)
+        self.public_lb_score = 0.0
+        self.private_lb_score = 0.0
+        self.label = 'lgb_2step'
+        m_step1 = ModelLGBRaw()
+        m_step1.params = params.lgb_raw()
+        m_step2 = ModelLGBRaw()
+        m_step2.keep_only_features = params.step2_keep_only_feature
+        self.model = {'step1': m_step1,
+                      'step2': m_step2}
+        self.outlier_handling = data_prep.rm_outlier
+
+    def cv_prep(self, train_x):
+        pass
+
+    def train_inner(self, train_x, train_y):
+        pass
+
+    def predict(self, test_x):
+        pass
+
+    def submit(self):
+        submit_combine_month(self)
+
+
+
+
+
 

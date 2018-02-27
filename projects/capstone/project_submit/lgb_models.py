@@ -2,9 +2,10 @@ import pandas as pd
 import numpy as np
 import data_prep
 import lightgbm as lgb
+import params
 
 
-feature_info = pd.read_csv('data/feature_info.csv', index_col='new_name')
+feature_info = data_prep.feature_info
 
 
 PARAMS = {
@@ -84,6 +85,7 @@ def param_search_lgb_random(train_x, train_y, label='', n_iter=100, min_data_in_
         res.append(res_list)
         print('finished %d / %d' % (i, n_iter))
     res_df = pd.DataFrame(res, columns=columns)
+    res_df.sort_values('%s-mean' % metric, inplace=True)
     res_df.to_csv('param_search/lgb_random_%s.csv' % label, index=False)
 
 
@@ -96,22 +98,25 @@ def train_lgb(train_x, train_y, params_inp):
 
 
 def param_search_raw():
+    """corresponds to ModelLGBRaw"""
     train_x = lgb_model_prep(data_prep.train_x)
     param_search_lgb_random(train_x, data_prep.train_y, 'raw')
+
+
+def param_search_one_step():
+    """corresponds to ModelLGBOneStep, with sale_month included, with class3_FE and outlier rm"""
+    train_x = data_prep.train_x.copy()
+    train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x < 10 else 10)
+    new_features = params.class3_new_features + ['sale_month_derive']
+    train_x = lgb_model_prep(train_x, new_features, params.class3_rm_features)
+    train_x, train_y = data_prep.rm_outlier(train_x, data_prep.train_y)
+    param_search_lgb_random(train_x, train_y, '1step')
 
 
 def param_search_step2():
     pass
 
 
-def is_month_median_analysis(train_x, train_y, pred_train_y):
-    y_diff = train_y - pred_train_y
-    y_diff_median = y_diff.groupby(train_x['sale_month']).median()
-    print(y_diff_median)
-
-
-if __name__ == '__main__':
-    param_search_raw()
 
 
 

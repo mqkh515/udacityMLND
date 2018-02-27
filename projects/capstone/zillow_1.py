@@ -2538,12 +2538,14 @@ def feature_factory(col, data, keep_num_var=False):
 
 
 def sale_month_test(month_set={'10', '11', '12'}, with_month=False):
+    np.random.seed(7)
     x_raw, y = load_train_data(prop_2016, prop_2017)
     x = lgb_data_prep(x_raw)
     if with_month:
         # x['cos_season'] = x_raw['cos_season']
         # x['sin_season'] = x_raw['sin_season']
         x['sale_month'] = x_raw['sale_month'].apply(lambda x: int(x))
+        # x['sale_month'] = x_raw['sale_month'].copy()
         x['sale_month'] = x['sale_month'].astype('category')
 
     idx = x_raw['sale_month'].apply(lambda x: x in month_set)
@@ -2562,12 +2564,36 @@ def sale_month_test(month_set={'10', '11', '12'}, with_month=False):
 
     gbm = train_lgb(train_x, train_y, get_params(p.raw_lgb_2y_1, 'reg'))
 
-    pred_y = lgb_raw_2y_blend_pred(train_x, train_y, test_x)
-    pred_y_is = lgb_raw_2y_blend_pred(train_x, train_y, train_x)
+    # pred_y = lgb_raw_2y_blend_pred(train_x, train_y, test_x)
+    # pred_y_is = lgb_raw_2y_blend_pred(train_x, train_y, train_x)
+
+    pred_y = gbm.predict(test_x)
+    pred_y_is = gbm.predict(train_x)  # gbm.predict returns an array not a Series!!!!! cannot use Series index for reference
 
     print('IS predict miss median: %.7f' % (train_y - pred_y_is).median())
-    print('IS predict miss median on month: %.7f' % (train_y[q4_idx[:split_n_q4]] - pred_y_is[q4_idx[:split_n_q4]]).median())
+    print('IS predict miss median on month: %.7f' % (train_y - pred_y_is)[q4_idx[:split_n_q4]].median())
     print('OS predict miss median: %.7f' % (test_y - pred_y).median())
+
+    return gbm
+
+
+def sale_month_test_v2(month_set={'10', '11', '12'}, with_month=False):
+    x_raw, y = load_train_data(prop_2016, prop_2017)
+    x = lgb_data_prep(x_raw)
+    if with_month:
+        # x['cos_season'] = x_raw['cos_season']
+        # x['sin_season'] = x_raw['sin_season']
+        x['sale_month'] = x_raw['sale_month'].apply(lambda x: int(x))
+        # x['sale_month'] = x_raw['sale_month'].copy()
+        x['sale_month'] = x['sale_month'].astype('category')
+
+    idx = x_raw['sale_month'].apply(lambda x: x in month_set)
+    gbm = train_lgb(x, y, get_params(p.raw_lgb_2y_1, 'reg'))
+
+    pred_y = gbm.predict(x)
+
+    print('IS predict miss median: %.7f' % (y - pred_y).median())
+    print('IS predict miss median on month: %.7f' % (y[idx] - pred_y[idx]).median())
 
     return gbm
 

@@ -31,7 +31,7 @@ def cv_avg_stratified(x, y, model_obj, stratify_by='sale_month', n_folds=5):
     return np.mean(evals)
 
 
-def cv_public_lb(x, y, model_obj, months_set=(7, 8, 9), train_fraction=(0.5, 0.2, 0.2), n_folds=5):
+def cv_public_lb(x, y, model_obj, months_set=(4, 5, 6), train_fraction=(0.5, 0.2, 0.2), n_folds=5):
     """testing set is created to mimic public LB behavior, i.e. given a months set out of 1 ~ 9, keep part of the 2016-months-set data in training, rest as testing."""
     evals = []
     for i in range(n_folds):
@@ -52,7 +52,7 @@ def cv_public_lb(x, y, model_obj, months_set=(7, 8, 9), train_fraction=(0.5, 0.2
     return np.mean(evals)
 
 
-def cv_private_lb(x, y, model_obj, months_set=(7, 8, 9), train_fraction=(0.5, 0.2, 0.2), n_folds=5):
+def cv_private_lb(x, y, model_obj, months_set=(4, 5, 6), train_fraction=(0.5, 0.2, 0.2), n_folds=5):
     """testing set is created to mimic private LB behavior, i.e.  a quarter out of months 1 ~ 9, keep part of 2016-months-set data in training, discard the rest, and use all 2017-months-set data in testing"""
     evals = []
     for i in range(n_folds):
@@ -65,7 +65,7 @@ def cv_private_lb(x, y, model_obj, months_set=(7, 8, 9), train_fraction=(0.5, 0.
             mon_train_flag = np.random.rand(mon_index.shape[0]) < train_fraction[mon_i]
             train_index += mon_index[mon_train_flag].tolist()
             # use corresponding 2017 month for testing
-            test_index += x.index[np.logical_and(x['sale_year'] == 2017, x['sale_month'] == months_set[mon_i])].values
+            test_index += x.index[np.logical_and(x['sale_year'] == 2017, x['sale_month'] == months_set[mon_i])].values.tolist()
         train_x = x.loc[train_index, :].copy()
         train_y = y[train_index].copy()
         test_x = x.loc[test_index, :].copy()
