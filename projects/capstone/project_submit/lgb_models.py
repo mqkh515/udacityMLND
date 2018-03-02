@@ -52,9 +52,9 @@ def lgb_model_prep(data, new_features=tuple(), rm_features=tuple(), keep_only_fe
 def param_search_lgb_random(train_x, train_y, label='', n_iter=100, min_data_in_leaf_range=(100, 600), num_leaf_range=(30, 80)):
     """random param search. only search for min_data_in_leaf, num_leaf_range and learning rate, L2 norm is set to zero as min_data_in_leaf acts on the same target as L2 coef."""
     np.random.seed(7)
-    params = PARAMS.copy()
+    p = PARAMS.copy()
     lgb_train = lgb.Dataset(train_x, train_y)
-    metric = list(params['metric'])[0]
+    metric = list(p['metric'])[0]
     columns = ['%s-mean' % metric, '%s-stdv' % metric, 'n_rounds', 'num_leaves', 'min_data_in_leaf', 'learning_rate']
 
     def rand_min_data_in_leaf():
@@ -73,8 +73,8 @@ def param_search_lgb_random(train_x, train_y, label='', n_iter=100, min_data_in_
                        'min_data_in_leaf': rand_min_data_in_leaf(),
                        'learning_rate': 0.1 ** rand_learning_rate(),
                        }
-        params.update(rand_params)
-        eval_hist = lgb.cv(params, lgb_train, stratified=False, num_boost_round=12000, early_stopping_rounds=100)
+        p.update(rand_params)
+        eval_hist = lgb.cv(p, lgb_train, stratified=False, num_boost_round=12000, early_stopping_rounds=100)
         res_list = [eval_hist['%s-mean' % metric][-1],
                     eval_hist['%s-stdv' % metric][-1],
                     len(eval_hist['%s-mean' % metric]),
@@ -91,9 +91,9 @@ def param_search_lgb_random(train_x, train_y, label='', n_iter=100, min_data_in_
 
 def train_lgb(train_x, train_y, params_inp):
     lgb_train = lgb.Dataset(train_x, train_y)
-    params = params_inp.copy()
-    num_boost_round = params.pop('num_boosting_rounds')
-    gbm = lgb.train(params, lgb_train, num_boost_round=num_boost_round)
+    p = params_inp.copy()
+    num_boost_round = p.pop('num_boosting_rounds')
+    gbm = lgb.train(p, lgb_train, num_boost_round=num_boost_round)
     return gbm
 
 
@@ -113,8 +113,67 @@ def param_search_one_step():
     param_search_lgb_random(train_x, train_y, '1step')
 
 
-def param_search_step2():
-    pass
+def param_search_step2(n_iter=100, min_data_in_leaf_range=(30, 100), num_leaf_range=(5, 20)):
+    """corresponds to step 2 of ModelLGBTwoStep, with no sale month included in step 1, and selected features only in step 2."""
+    train_x, train_y = data_prep.rm_outlier(data_prep.train_x, data_prep.train_y)
+
+    x_step1 = lgb_model_prep(train_x, params.class3_new_features, params.class3_rm_features)
+    params_step1 = PARAMS.copy()
+    params_step1.update(params.lgb_step1_1)
+    gbm = train_lgb(x_step1, train_y, params_step1)
+    pred_step1 = gbm.predict(x_step1)
+    error_step1 = train_y - pred_step1  # pd.Series
+
+    def rand_min_data_in_leaf():
+        return np.random.randint(min_data_in_leaf_range[0], min_data_in_leaf_range[1])
+
+    def rand_learning_rate():
+        return np.random.uniform(2, 3)
+
+    def rand_num_leaf():
+        return np.random.randint(num_leaf_range[0], num_leaf_range[1])
+
+    x_step2 = lgb_model_prep(train_x, keep_only_feature=params.step2_keep_only_feature)
+    np.random.seed(7)
+    p = PARAMS.copy()
+    metric = list(p['metric'])[0]
+    columns = ['%s-mean' % metric, '%s-stdv' % metric, 'n_rounds-mean', 'n_rounds_stdv', 'num_leaves', 'min_data_in_leaf', 'learning_rate']
+
+    res = []
+    for i in range(1, n_iter + 1):
+        rand_params = {'num_leaves': rand_num_leaf(),
+                       'min_data_in_leaf': rand_min_data_in_leaf(),
+                       'learning_rate': 0.1 ** rand_learning_rate()
+                       }
+        p.update(rand_params)
+        cv_hist = []
+        n_rounds = []
+        for mon in range(1, 10):
+            use_idx = np.array(train_x.index[train_x['sale_month'] == mon])
+            np.random.shuffle(use_idx)
+            use_idx = use_idx[:9000]  # always use only 9000 samples to match the sample size of 2016-10,11,12
+            pred_error = error_step1[use_idx]
+            train_x_step2_local = x_step2.loc[use_idx, :]
+            lgb_train = lgb.Dataset(train_x_step2_local, pred_error)
+            eval_hist = lgb.cv(p, lgb_train, stratified=False, num_boost_round=5000, early_stopping_rounds=50)
+            cv_hist.append([eval_hist['%s-mean' % metric][-1], eval_hist['%s-stdv' % metric][-1]])
+            n_rounds.append(len(eval_hist['%s-mean' % metric]))
+        m_mean, m_stdv = np.array(cv_hist).mean(axis=0)
+        n_rounds_mean = np.mean(np.array(n_rounds))
+        n_rounds_stdv = np.std(np.array(n_rounds))
+        res.append([m_mean, m_stdv, n_rounds_mean, n_rounds_stdv, rand_params['num_leaves'], rand_params['min_data_in_leaf'], rand_params['learning_rate']])
+        print('finished %d / %d' % (i, n_iter))
+    res_df = pd.DataFrame(res, columns=columns)
+    res_df.sort_values('%s-mean' % metric, inplace=True)
+    res_df.to_csv('param_search/lgb_random_step2.csv', index=False)
+
+
+
+
+
+
+
+
 
 
 

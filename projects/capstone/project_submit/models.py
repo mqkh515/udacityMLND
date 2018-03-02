@@ -9,18 +9,32 @@ import gc
 import params
 
 
+def blend_submission(fs, label):
+    preds = [pd.read_csv('data/%s.csv.gz' % f, header=0, compression='gzip') for f in fs]
+    columns = ['ParcelId', '201610', '201611', '201612', '201710', '201711', '201712']
+    for p in preds:
+        p = p.loc[:, columns]
+    pred = None
+    for p in preds:
+        if pred is None:
+            pred = p
+        else:
+            pred += p
+    pred /= len(fs)
+    pred['ParcelId'] = pred['ParcelId'].astype(int)
+    pred.to_csv('data/%s.csv.gz' % label, index=False, float_format='%.7f', compression='gzip')
+
+
 def get_lb_rank(score, lb_type):
     df = pd.read_csv('data/%s_lb.csv' % lb_type)
     return df['rank'].values[np.searchsorted(df['score'].values, score)]
-
 
 
 def submit_sep_month(model):
     submission = pd.read_csv('data/sample_submission.csv', header=0)
     df = pd.DataFrame()
     df['ParcelId'] = submission['ParcelId']
-    if model.model is None:
-        model.train(data_prep.train_x, data_prep.train_y)
+    model.train(data_prep.train_x, data_prep.train_y)
     prop_2016 = data_prep.prop_2016.copy()
     for m in [10, 11, 12]:
         prop_2016['sale_month'] = m
@@ -43,8 +57,7 @@ def submit_combine_month(model):
     submission = pd.read_csv('data/sample_submission.csv', header=0)
     df = pd.DataFrame()
     df['ParcelId'] = submission['ParcelId']
-    if model.model is None:
-        model.train(data_prep.train_x, data_prep.train_y)
+    model.train(data_prep.train_x, data_prep.train_y)
     prop_2016 = data_prep.prop_2016.copy()
     prop_2016['sale_month'] = 10
     pred_2016 = model.predict(prop_2016)
@@ -81,6 +94,7 @@ class ModelBase(object):
                 pkl.dump(self.model, open('models/model_%s.pkl' % self.label, 'wb'))
 
     def train_inner(self, train_x, train_y):
+        """set self.model in this function call"""
         pass
 
     def predict(self, test_x):
@@ -152,7 +166,6 @@ class ModelLGBRaw(ModelBase):
         self.keep_only_features = []
         self.label = 'lgb_raw'
 
-
     def prep_added_features(self, train_x):
         pass
 
@@ -216,31 +229,180 @@ class ModelLGBOneStep(ModelLGBRawIncMonOutlierRm):
         self.label = 'lgb_1step'
 
 
-class ModelLGBTwoStep(ModelBase):
+class ModelLGBBlending(ModelBase):
+    def __init__(self):
+        ModelBase.__init__(self)
+        self.label = ''  # not expected to be used as a real model
+        self.model = None
+        self.model_setup()
+        self.outlier_handling = data_prep.rm_outlier
+
+    def model_setup(self):
+        pass
+
+    def train_inner(self, train_x, train_y):
+        for m in self.model:
+            m.train(train_x, train_y, False, False)
+
+    def predict(self, test_x):
+        pred = None
+        for m in self.model:
+            pred_m = m.predict(test_x)
+            if pred is None:
+                pred = pred_m
+            else:
+                pred += pred_m
+        return pred / len(self.model)
+
+    def submit(self):
+        submit_combine_month(self)
+
+
+class ModelLGBBlendingOneStep(ModelLGBBlending):
+    def __init__(self):
+        ModelLGBBlending.__init__(self)
+        self.public_lb_score = 0.0641527
+        self.private_lb_score = 0.0749282
+        self.label = 'lgb_1step_blending'
+
+    def model_setup(self):
+        self.model = []
+        for p in params.lgb_step1:
+            m = ModelLGBOneStep()
+            m.params = p
+            self.model.append(m)
+
+
+# class ModelLGBBlendingOneStepMoreRounds(ModelLGBBlendingOneStep):
+#     def __init__(self):
+#         ModelLGBBlendingOneStep.__init__(self)
+#         self.public_lb_score = 0.0
+#         self.private_lb_score = 0.0
+#         self.label = 'lgb_1step_blending_more_rounds'
+#         for m in self.model:
+#             m.params['num_boosting_rounds'] += int(m.params['num_boosting_rounds'] * 0.1)
+
+
+class ModelLGBBlendingTwoStepStep1(ModelLGBBlending):
+    def __init__(self):
+        ModelLGBBlending.__init__(self)
+        self.label = ''
+
+    def model_setup(self):
+        self.model = []
+        for p in params.lgb_step1:
+            m = ModelLGBRaw()
+            m.params = p
+            m.added_features = params.class3_new_features
+            m.rm_features = params.class3_rm_features
+            m.outlier_handling = data_prep.rm_outlier
+            self.model.append(m)
+
+
+class ModelLGBBlendingTwoStepStep2(ModelLGBBlending):
+    def __init__(self):
+        ModelLGBBlending.__init__(self)
+        self.label = ''
+
+    def model_setup(self):
+        self.model = []
+        for p in params.lgb_step2:
+            m = ModelLGBRaw()
+            m.params = p
+            m.keep_only_features = params.step2_keep_only_feature
+            m.outlier_handling = data_prep.rm_outlier
+            self.model.append(m)
+
+
+class ModelLGBTwoStepBase(ModelBase):
     def __init__(self):
         ModelBase.__init__(self)
         self.public_lb_score = 0.0
         self.private_lb_score = 0.0
+        self.label = ''
+        self.model = None
+        self.model_setup()
+        self.outlier_handling = data_prep.rm_outlier
+        self.target_mon = set()  # save the spot, target_mon could be different in cv and final predict
+
+    def model_setup(self):
+        pass
+
+    def cv_prep(self, train_x):
+        self.target_mon = {4, 5, 6}
+
+    def train_inner(self, train_x, train_y):
+        assert self.target_mon
+        self.model['step1'].train(train_x, train_y, False, False)
+        pred1 = self.model['step1'].predict(train_x)
+        error1 = train_y - pred1
+        # CV should make sure only 2016 data is used in training
+        if np.any(np.logical_and(train_x['sale_month'].apply(lambda x: x in self.target_mon), train_x['data_year'] == 2017)):
+            raise Exception('2017 target months data used in training')
+        tar_index = np.array(train_x.index[train_x['sale_month'].apply(lambda x: x in self.target_mon)])
+        assert np.all(train_x.index == error1.index)
+        train_x_step2 = train_x.loc[tar_index, :]
+        train_y_step2 = error1[tar_index]
+        self.model['step2'].train(train_x_step2, train_y_step2, False, False)
+
+    def predict(self, test_x):
+        pred_step1 = self.model['step1'].predict(test_x)
+        pred_step2 = self.model['step2'].predict(test_x)
+        return pred_step1 + pred_step2
+
+    def analysis(self):
+        # no avg CV for 2-step lgb
+        cv_public_lb = cv.cv_public_lb(data_prep.train_x, data_prep.train_y, self)
+        cv_private_lb = cv.cv_private_lb(data_prep.train_x, data_prep.train_y, self)
+        public_lb_rank = get_lb_rank(self.public_lb_score, 'public') if self.public_lb_score else 0
+        private_lb_rank = get_lb_rank(self.private_lb_score, 'private') if self.private_lb_score else 0
+        return [0.0, cv_private_lb, cv_public_lb, self.public_lb_score, public_lb_rank, self.private_lb_score, private_lb_rank]
+
+    def submit(self):
+        self.target_mon = {10, 11, 12}
+        submit_combine_month(self)
+
+
+class ModelLGBTwoStep(ModelLGBTwoStepBase):
+    def __init__(self):
+        ModelLGBTwoStepBase.__init__(self)
+        self.public_lb_score = 0.0641599
+        self.private_lb_score = 0.0749253
         self.label = 'lgb_2step'
+
+    def model_setup(self):
         m_step1 = ModelLGBRaw()
-        m_step1.params = params.lgb_raw()
+        m_step1.params = params.lgb_step1_1
+        m_step1.added_features = params.class3_new_features
+        m_step1.rm_features = params.class3_rm_features
         m_step2 = ModelLGBRaw()
+        m_step2.params = params.lgb_step2_1
         m_step2.keep_only_features = params.step2_keep_only_feature
         self.model = {'step1': m_step1,
                       'step2': m_step2}
-        self.outlier_handling = data_prep.rm_outlier
 
-    def cv_prep(self, train_x):
-        pass
 
-    def train_inner(self, train_x, train_y):
-        pass
+class ModelLGBTwoStepBlending(ModelLGBTwoStepBase):
+    def __init__(self):
+        ModelLGBTwoStepBase.__init__(self)
+        self.public_lb_score = 0.0641384
+        self.private_lb_score = 0.0749144
+        self.label = 'lgb_2step_blending'
 
-    def predict(self, test_x):
-        pass
+    def model_setup(self):
+        self.model = {'step1': ModelLGBBlendingTwoStepStep1(),
+                      'step2': ModelLGBBlendingTwoStepStep2()}
 
-    def submit(self):
-        submit_combine_month(self)
+
+# class ModelLGBTwoStepBlendingMoreRounds(ModelLGBTwoStepBlending):
+#     def __init__(self):
+#         ModelLGBTwoStepBlending.__init__(self)
+#         for m in self.model['step1'].model:
+#             m.params['num_boosting_rounds'] += int(m.params['num_boosting_rounds'] * 0.1)
+#         self.public_lb_score = 0.0
+#         self.private_lb_score = 0.0
+#         self.label = 'lgb_2step_blending_more_rounds'
+
 
 
 
