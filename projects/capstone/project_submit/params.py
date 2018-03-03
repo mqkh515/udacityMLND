@@ -21,8 +21,6 @@ class3_rm_features = ['code_zip_lgb',
                       'block_lgb']
 # class3_rm_features = []
 
-# class3_new_features = ()
-
 
 step2_keep_only_feature = ['year_assess', 'year_built', 'area_lot', 'dollar_tax', 'area_living_type_12', 'dollar_taxvalue_structure', 'latitude', 'longitude', 'dollar_taxvalue_land',
                            'dollar_taxvalue_structure', 'dollar_taxvalue_total', 'area_garage'] + class3_new_features

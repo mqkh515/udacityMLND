@@ -318,6 +318,9 @@ class ModelLGBBlendingOneStepSepMonth(ModelLGBBlending):
             m.params = p
             self.model.append(m)
 
+    def submit(self):
+        submit_sep_month(self)
+
 
 # class ModelLGBBlendingOneStepMoreRounds(ModelLGBBlendingOneStep):
 #     def __init__(self):
