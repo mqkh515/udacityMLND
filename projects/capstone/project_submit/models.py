@@ -200,14 +200,26 @@ class ModelLGBRawSubCol(ModelLGBRaw):
 
 class ModelLGBRawIncMon(ModelLGBRaw):
     def __init__(self):
+        """combined month version of RawLGB"""
         ModelLGBRaw.__init__(self)
         self.public_lb_score = 0.0641573
         self.private_lb_score = 0.0750084
         self.added_features = ['sale_month_derive']
         self.label = 'lgb_raw_inc_mon'
+        self.target_mon = set()
+        self.target_mon_label = None
 
     def prep_added_features(self, train_x):
-        train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x < 10 else 10)
+        train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x not in self.target_mon else self.target_mon_label)
+
+    def cv_prep(self, train_x):
+        self.target_mon = {4, 5, 6}
+        self.target_mon_label = 4
+
+    def submit(self):
+        self.target_mon = {10, 11, 12}
+        self.target_mon_label = 10
+        submit_combine_month(self)
 
 
 class ModelLGBRawIncMonOutlierRm(ModelLGBRawIncMon):
@@ -227,6 +239,25 @@ class ModelLGBOneStep(ModelLGBRawIncMonOutlierRm):
         self.added_features += params.class3_new_features
         self.rm_features = params.class3_rm_features
         self.label = 'lgb_1step'
+
+
+class ModelLGBOneStepSepMonth(ModelLGBOneStep):
+    def __init__(self):
+        ModelLGBOneStep.__init__(self)
+        self.public_lb_score = 0.0
+        self.private_lb_score = 0.0
+        self.added_features = ['sale_month'] + params.class3_new_features
+        self.rm_features = params.class3_rm_features
+        self.label = 'lgb_1step_sep_month'
+
+    def prep_added_features(self, train_x):
+        pass
+
+    def cv_prep(self, train_x):
+        pass
+
+    def submit(self):
+        submit_sep_month(self)
 
 
 class ModelLGBBlending(ModelBase):
@@ -269,6 +300,21 @@ class ModelLGBBlendingOneStep(ModelLGBBlending):
         self.model = []
         for p in params.lgb_step1:
             m = ModelLGBOneStep()
+            m.params = p
+            self.model.append(m)
+
+
+class ModelLGBBlendingOneStepSepMonth(ModelLGBBlending):
+    def __init__(self):
+        ModelLGBBlending.__init__(self)
+        self.public_lb_score = 0.0
+        self.private_lb_score = 0.0
+        self.label = 'lgb_1step_sep_month_blending'
+
+    def model_setup(self):
+        self.model = []
+        for p in params.lgb_step1:
+            m = ModelLGBOneStepSepMonth()
             m.params = p
             self.model.append(m)
 

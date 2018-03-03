@@ -327,3 +327,5 @@ def rm_outlier(x, y):
 
 prop_2016, prop_2017 = load_prop_data()
 train_x, train_y = load_train_data(prop_2016, prop_2017, False, True)
+# train_x = pkl.load(open('data/train_x.pkl', 'rb'))
+# train_y = pkl.load(open('data/train_y.pkl', 'rb'))
