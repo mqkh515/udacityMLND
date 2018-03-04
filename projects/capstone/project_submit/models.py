@@ -244,8 +244,8 @@ class ModelLGBOneStep(ModelLGBRawIncMonOutlierRm):
 class ModelLGBOneStepSepMonth(ModelLGBOneStep):
     def __init__(self):
         ModelLGBOneStep.__init__(self)
-        self.public_lb_score = 0.0
-        self.private_lb_score = 0.0
+        self.public_lb_score = 0.0641749
+        self.private_lb_score = 0.0749703
         self.added_features = ['sale_month'] + params.class3_new_features
         self.rm_features = params.class3_rm_features
         self.label = 'lgb_1step_sep_month'
@@ -307,8 +307,8 @@ class ModelLGBBlendingOneStep(ModelLGBBlending):
 class ModelLGBBlendingOneStepSepMonth(ModelLGBBlending):
     def __init__(self):
         ModelLGBBlending.__init__(self)
-        self.public_lb_score = 0.0
-        self.private_lb_score = 0.0
+        self.public_lb_score = 0.0641476
+        self.private_lb_score = 0.0749362
         self.label = 'lgb_1step_sep_month_blending'
 
     def model_setup(self):
