@@ -7,6 +7,7 @@ import pickle as pkl
 import os
 import gc
 import params
+import cat_boost_models
 
 
 def blend_submission(fs, label):
@@ -451,6 +452,39 @@ class ModelLGBTwoStepBlending(ModelLGBTwoStepBase):
 #         self.public_lb_score = 0.0
 #         self.private_lb_score = 0.0
 #         self.label = 'lgb_2step_blending_more_rounds'
+
+
+class ModelCatBoost(ModelBase):
+    def __init__(self):
+        ModelBase.__init__(self)
+        self.public_lb_score = 0.0
+        self.private_lb_score = 0.0
+        self.label = 'catboost'
+        self.outlier_handling = data_prep.rm_outlier
+        self.target_mon = set()
+        self.target_mon_label = None
+
+    def cv_prep(self, train_x):
+        self.target_mon = {4, 5, 6}
+        self.target_mon_label = 4
+
+    def train_inner(self, train_x, train_y):
+        train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x not in self.target_mon else self.target_mon_label)
+        train_x, cat_inds = cat_boost_models.cat_boost_model_prep(train_x, ['sale_month_derive'], [False])
+        m = cat_boost_models.cat_boost_obj_gen(params.catboost_default, 1)
+        m.fit(train_x, train_y, cat_features=cat_inds)
+        self.model = m
+
+    def predict(self, test_x):
+        test_x['sale_month_derive'] = test_x['sale_month'].apply(lambda x: x if x not in self.target_mon else self.target_mon_label)
+        test_x, _ = cat_boost_models.cat_boost_model_prep(test_x, ['sale_month_derive'], [False])
+        pred = self.model.predict(test_x)
+        return pred
+
+    def submit(self):
+        self.target_mon = {10, 11, 12}
+        self.target_mon_label = 10
+        submit_combine_month(self)
 
 
 

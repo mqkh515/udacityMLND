@@ -101,3 +101,10 @@ lgb_step2_6 = {'num_leaves': 6,
                }
 
 lgb_step2 = [lgb_step2_1, lgb_step2_2, lgb_step2_3, lgb_step2_4, lgb_step2_5, lgb_step2_6]
+
+
+catboost_default = {'iterations': 630,
+                    'learning_rate': 0.03,
+                    'depth': 6,
+                    'l2_leaf_reg': 3,
+                    }
