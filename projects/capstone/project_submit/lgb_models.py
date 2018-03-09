@@ -168,6 +168,12 @@ def param_search_step2(n_iter=100, min_data_in_leaf_range=(30, 100), num_leaf_ra
     res_df.to_csv('param_search/lgb_random_step2.csv', index=False)
 
 
+def lgb_test():
+    x = pd.DataFrame(np.random.randn(1000, 3))
+    y = x[0] + 1 + x[1] + 2 + x[2] * 3 + np.random.randn(1000) / 2
+    lgb_train = lgb.Dataset(x, y)
+    gbm = lgb.train(data=lgb_train)
+
 
 
 

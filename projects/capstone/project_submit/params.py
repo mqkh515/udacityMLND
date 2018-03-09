@@ -25,6 +25,14 @@ class3_rm_features = ['code_zip_lgb',
 step2_keep_only_feature = ['year_assess', 'year_built', 'area_lot', 'dollar_tax', 'area_living_type_12', 'dollar_taxvalue_structure', 'latitude', 'longitude', 'dollar_taxvalue_land',
                            'dollar_taxvalue_structure', 'dollar_taxvalue_total', 'area_garage'] + class3_new_features
 
+
+lgb_default = {'num_leaves': 31,
+               'min_data_in_leaf': 20,
+               'learning_rate': 0.1,
+               'num_boosting_rounds': 100
+               }
+
+
 lgb_raw = {'num_leaves': 76,
            'min_data_in_leaf': 168,
            'learning_rate': 0.0062,

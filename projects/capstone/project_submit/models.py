@@ -186,6 +186,15 @@ class ModelLGBRaw(ModelBase):
         submit_combine_month(self)
 
 
+class ModelLGBRawDefaultParam(ModelLGBRaw):
+    def __init__(self):
+        ModelLGBRaw.__init__(self)
+        self.params = {}
+        self.public_lb_score = 0.0
+        self.private_lb_score = 0.0
+        self.label = 'lgb_raw_default_param'
+
+
 class ModelLGBRawSubCol(ModelLGBRaw):
     def __init__(self):
         ModelLGBRaw.__init__(self)

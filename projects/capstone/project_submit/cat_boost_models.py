@@ -14,6 +14,8 @@ def cat_boost_model_prep(data, added_features=(), added_features_cat_flag=()):
     features_list = list(added_features)
     cat_flag_list = list(added_features_cat_flag)
     for col in features_all:
+        if col in ['num_bathroom_assessor', 'code_county', 'area_living_type_12', 'area_firstfloor_assessor']:
+            continue
         if feature_info.loc[col, 'type'] in {'cat', 'num'}:
             features_list.append(col)
         else:
@@ -47,24 +49,32 @@ def cat_boost_param_search(train_x, train_y,  n_iter=100, depth=(5, 11), l2_leaf
 
     def rand_learning_rate():
         """learning rate use log linear spacing"""
-        return np.random.uniform(1, 8) * 0.01
+        return 0.1 ** np.random.uniform(1.1, 2)  # floor at 1.1 to cap learning rate at 0.08, let't not make it too large
 
     def rand_l2_leaf_reg():
         return np.random.randint(l2_leaf_reg[0], l2_leaf_reg[1])
 
     train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x not in {10, 11, 12} else 10)
+    train_x, train_y = data_prep.rm_outlier(train_x, train_y)
     train_x, cat_inds = cat_boost_model_prep(train_x, ['sale_month_derive'], [False])
 
     np.random.seed(7)
 
-    res = []
-    for i in range(1, n_iter + 1):
-        param = {'iterations': 2000,
+    def write_to_file(line):
+        f = open('param_search/catboost_random.txt', 'a')
+        f.write(line + '\n')
+        f.close()
+
+    headers = ','.join(['MAE_avg', 'MAE_stddev', 'n_iter', 'learning_rate', 'depth', 'l2_leaf_reg'])
+    write_to_file(headers)
+
+    def do_cv(learning_rate, depth, l2_leaf_reg):
+        param = {'iterations': 3000,
                  'od_type': 'Iter',
-                 'od_wait': 20,
-                 'learning_rate': rand_learning_rate(),
-                 'depth': rand_depth(),
-                 'l2_leaf_reg': rand_l2_leaf_reg(),
+                 'od_wait': 50,
+                 'learning_rate':learning_rate ,
+                 'depth': depth,
+                 'l2_leaf_reg': l2_leaf_reg,
                  'loss_function': 'MAE',
                  'eval_metric': 'MAE',
                  }
@@ -76,14 +86,14 @@ def cat_boost_param_search(train_x, train_y,  n_iter=100, depth=(5, 11), l2_leaf
                     param['depth'],
                     param['l2_leaf_reg'],
                     ]
-        res.append(res_list)
+        line = '%.7f,%.7f,%.0f,%.6f,%.0f,%.0f' % tuple(res_list)
+        write_to_file(line)
+        return res_list
+
+    res = [do_cv(0.03, 6, 3)]  # cv res from default param
+    for i in range(1, n_iter + 1):
+        res.append(do_cv(rand_learning_rate(), rand_depth(), rand_l2_leaf_reg()))
         print('finished %d / %d' % (i, n_iter))
     res_df = pd.DataFrame(res, columns=['MAE_avg', 'MAE_stddev', 'n_iter', 'learning_rate', 'depth', 'l2_leaf_reg'])
     res_df.sort_values('MAE_avg', inplace=True)
     res_df.to_csv('param_search/catboost_random.csv', index=False)
-
-
-def cat_boost_test():
-    x = pd.DataFrame(np.random.randn(1000, 3))
-    y = x[0] + 1 + x[1] + 2 + x[2] * 3 + np.random.randn(1000) / 2
-    res = catboost.cv({}, catboost.Pool(x, y), 5)
