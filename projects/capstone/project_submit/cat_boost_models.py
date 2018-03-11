@@ -42,14 +42,14 @@ def cat_boost_obj_gen(param, seed):
                                       random_seed=seed)
 
 
-def cat_boost_param_search(train_x, train_y,  n_iter=100, depth=(5, 11), l2_leaf_reg=(2, 10)):
+def cat_boost_param_search(train_x, train_y,  n_iter=100, depth=(5, 8), l2_leaf_reg=(1, 10)):
 
     def rand_depth():
         return np.random.randint(depth[0], depth[1])
 
     def rand_learning_rate():
         """learning rate use log linear spacing"""
-        return 0.1 ** np.random.uniform(1.1, 2)  # floor at 1.1 to cap learning rate at 0.08, let't not make it too large
+        return np.random.uniform(0.015, 0.045)
 
     def rand_l2_leaf_reg():
         return np.random.randint(l2_leaf_reg[0], l2_leaf_reg[1])
