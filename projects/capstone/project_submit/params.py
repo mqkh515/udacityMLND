@@ -116,3 +116,10 @@ catboost_default = {'iterations': 630,
                     'depth': 6,
                     'l2_leaf_reg': 3,
                     }
+
+
+catboost_tuned = {'iterations': 1200,
+                  'learning_rate': 0.0173,
+                  'depth': 6,
+                  'l2_leaf_reg': 7,
+                  }

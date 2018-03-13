@@ -251,23 +251,23 @@ class ModelLGBOneStep(ModelLGBRawIncMonOutlierRm):
         self.label = 'lgb_1step'
 
 
-class ModelLGBOneStepSepMonth(ModelLGBOneStep):
-    def __init__(self):
-        ModelLGBOneStep.__init__(self)
-        self.public_lb_score = 0.0641749
-        self.private_lb_score = 0.0749703
-        self.added_features = ['sale_month'] + params.class3_new_features
-        self.rm_features = params.class3_rm_features
-        self.label = 'lgb_1step_sep_month'
-
-    def prep_added_features(self, train_x):
-        pass
-
-    def cv_prep(self, train_x):
-        pass
-
-    def submit(self):
-        submit_sep_month(self)
+# class ModelLGBOneStepSepMonth(ModelLGBOneStep):
+#     def __init__(self):
+#         ModelLGBOneStep.__init__(self)
+#         self.public_lb_score = 0.0641749
+#         self.private_lb_score = 0.0749703
+#         self.added_features = ['sale_month'] + params.class3_new_features
+#         self.rm_features = params.class3_rm_features
+#         self.label = 'lgb_1step_sep_month'
+#
+#     def prep_added_features(self, train_x):
+#         pass
+#
+#     def cv_prep(self, train_x):
+#         pass
+#
+#     def submit(self):
+#         submit_sep_month(self)
 
 
 class ModelLGBBlending(ModelBase):
@@ -313,23 +313,29 @@ class ModelLGBBlendingOneStep(ModelLGBBlending):
             m.params = p
             self.model.append(m)
 
-
-class ModelLGBBlendingOneStepSepMonth(ModelLGBBlending):
-    def __init__(self):
-        ModelLGBBlending.__init__(self)
-        self.public_lb_score = 0.0641476
-        self.private_lb_score = 0.0749362
-        self.label = 'lgb_1step_sep_month_blending'
-
-    def model_setup(self):
-        self.model = []
-        for p in params.lgb_step1:
-            m = ModelLGBOneStepSepMonth()
-            m.params = p
-            self.model.append(m)
-
     def submit(self):
-        submit_sep_month(self)
+        for m in self.model:
+            m.target_mon = {10, 11, 12}
+            m.target_mon_label = 10
+        submit_combine_month(self)
+
+
+# class ModelLGBBlendingOneStepSepMonth(ModelLGBBlending):
+#     def __init__(self):
+#         ModelLGBBlending.__init__(self)
+#         self.public_lb_score = 0.0641476
+#         self.private_lb_score = 0.0749362
+#         self.label = 'lgb_1step_sep_month_blending'
+#
+#     def model_setup(self):
+#         self.model = []
+#         for p in params.lgb_step1:
+#             m = ModelLGBOneStepSepMonth()
+#             m.params = p
+#             self.model.append(m)
+#
+#     def submit(self):
+#         submit_sep_month(self)
 
 
 # class ModelLGBBlendingOneStepMoreRounds(ModelLGBBlendingOneStep):
@@ -466,12 +472,13 @@ class ModelLGBTwoStepBlending(ModelLGBTwoStepBase):
 class ModelCatBoost(ModelBase):
     def __init__(self):
         ModelBase.__init__(self)
-        self.public_lb_score = 0.0
-        self.private_lb_score = 0.0
+        self.public_lb_score = 0.0641350
+        self.private_lb_score = 0.0748987
         self.label = 'catboost'
         self.outlier_handling = data_prep.rm_outlier
         self.target_mon = set()
         self.target_mon_label = None
+        self.seed = 1
 
     def cv_prep(self, train_x):
         self.target_mon = {4, 5, 6}
@@ -480,7 +487,7 @@ class ModelCatBoost(ModelBase):
     def train_inner(self, train_x, train_y):
         train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x not in self.target_mon else self.target_mon_label)
         train_x, cat_inds = cat_boost_models.cat_boost_model_prep(train_x, ['sale_month_derive'], [False])
-        m = cat_boost_models.cat_boost_obj_gen(params.catboost_default, 1)
+        m = cat_boost_models.cat_boost_obj_gen(params.catboost_tuned, self.seed)
         m.fit(train_x, train_y, cat_features=cat_inds)
         self.model = m
 
@@ -495,6 +502,26 @@ class ModelCatBoost(ModelBase):
         self.target_mon_label = 10
         submit_combine_month(self)
 
+
+class ModelCatBoostBlending(ModelLGBBlending):
+    def __init__(self):
+        ModelLGBBlending.__init__(self)
+        self.public_lb_score = 0.0
+        self.private_lb_score = 0.0
+        self.label = 'cat_boost_blending'
+
+    def model_setup(self):
+        self.model = []
+        for s in range(1, 6):
+            m = ModelCatBoost()
+            m.seed = s
+            self.model.append(m)
+
+    def submit(self):
+        for m in self.model:
+            m.target_mon = {10, 11, 12}
+            m.target_mon_label = 10
+        submit_combine_month(self)
 
 
 

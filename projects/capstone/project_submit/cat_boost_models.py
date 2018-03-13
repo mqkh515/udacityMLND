@@ -42,7 +42,7 @@ def cat_boost_obj_gen(param, seed):
                                       random_seed=seed)
 
 
-def cat_boost_param_search(train_x, train_y,  n_iter=100, depth=(5, 8), l2_leaf_reg=(1, 10)):
+def cat_boost_param_search(train_x, train_y,  n_iter=50, depth=(5, 8), l2_leaf_reg=(1, 10)):
 
     def rand_depth():
         return np.random.randint(depth[0], depth[1])
