@@ -10,20 +10,17 @@ import params
 import cat_boost_models
 
 
-def blend_submission(fs, label):
-    preds = [pd.read_csv('data/%s.csv.gz' % f, header=0, compression='gzip') for f in fs]
-    columns = ['ParcelId', '201610', '201611', '201612', '201710', '201711', '201712']
-    for p in preds:
-        p = p.loc[:, columns]
-    pred = None
-    for p in preds:
-        if pred is None:
-            pred = p
-        else:
-            pred += p
-    pred /= len(fs)
-    pred['ParcelId'] = pred['ParcelId'].astype(int)
-    pred.to_csv('data/%s.csv.gz' % label, index=False, float_format='%.7f', compression='gzip')
+def format_cv_output(m):
+    out_data = m.analysis()
+    pd.options.display.float_format = '{:,.7f}'.format
+    df = pd.DataFrame([out_data], columns=['cv_avg',
+                                           'cv_public_LB',
+                                           'cv_private_LB',
+                                           'score_public_LB',
+                                           'rank_public_LB',
+                                           'score_private_LB',
+                                           'rank_private_LB'])
+    df.to_csv('models/cv_res_%s.csv' % m.label)
 
 
 def get_lb_rank(score, lb_type):
@@ -186,15 +183,6 @@ class ModelLGBRaw(ModelBase):
         submit_combine_month(self)
 
 
-class ModelLGBRawDefaultParam(ModelLGBRaw):
-    def __init__(self):
-        ModelLGBRaw.__init__(self)
-        self.params = {}
-        self.public_lb_score = 0.0
-        self.private_lb_score = 0.0
-        self.label = 'lgb_raw_default_param'
-
-
 class ModelLGBRawSubCol(ModelLGBRaw):
     def __init__(self):
         ModelLGBRaw.__init__(self)
@@ -249,6 +237,17 @@ class ModelLGBOneStep(ModelLGBRawIncMonOutlierRm):
         self.added_features += params.class3_new_features
         self.rm_features = params.class3_rm_features
         self.label = 'lgb_1step'
+
+
+class ModelLGBOneStepDefaultParam(ModelLGBOneStep):
+    def __init__(self):
+        ModelLGBOneStep.__init__(self)
+        self.public_lb_score = 0.0643160
+        self.private_lb_score = 0.0752334
+        self.added_features += params.class3_new_features
+        self.rm_features = params.class3_rm_features
+        self.label = 'lgb_1step_default_param'
+        self.params = params.lgb_default
 
 
 # class ModelLGBOneStepSepMonth(ModelLGBOneStep):
@@ -479,6 +478,7 @@ class ModelCatBoost(ModelBase):
         self.target_mon = set()
         self.target_mon_label = None
         self.seed = 1
+        self.params = params.catboost_tuned
 
     def cv_prep(self, train_x):
         self.target_mon = {4, 5, 6}
@@ -487,7 +487,7 @@ class ModelCatBoost(ModelBase):
     def train_inner(self, train_x, train_y):
         train_x['sale_month_derive'] = train_x['sale_month'].apply(lambda x: x if x not in self.target_mon else self.target_mon_label)
         train_x, cat_inds = cat_boost_models.cat_boost_model_prep(train_x, ['sale_month_derive'], [False])
-        m = cat_boost_models.cat_boost_obj_gen(params.catboost_tuned, self.seed)
+        m = cat_boost_models.cat_boost_obj_gen(self.params, self.seed)
         m.fit(train_x, train_y, cat_features=cat_inds)
         self.model = m
 
@@ -503,11 +503,21 @@ class ModelCatBoost(ModelBase):
         submit_combine_month(self)
 
 
+class ModelCatBoostDefaultParam(ModelCatBoost):
+    def __init__(self):
+        ModelCatBoost.__init__(self)
+        self.public_lb_score = 0.0642229
+        self.private_lb_score = 0.0750398
+        self.label = 'catboost_default_param'
+        self.outlier_handling = data_prep.rm_outlier
+        self.params = params.catboost_default
+
+
 class ModelCatBoostBlending(ModelLGBBlending):
     def __init__(self):
         ModelLGBBlending.__init__(self)
-        self.public_lb_score = 0.0
-        self.private_lb_score = 0.0
+        self.public_lb_score = 0.0640620
+        self.private_lb_score = 0.0748351
         self.label = 'cat_boost_blending'
 
     def model_setup(self):
@@ -522,6 +532,58 @@ class ModelCatBoostBlending(ModelLGBBlending):
             m.target_mon = {10, 11, 12}
             m.target_mon_label = 10
         submit_combine_month(self)
+
+
+class ModelDirectBlending:
+    def __init__(self):
+        self.public_lb_score = 0.0
+        self.private_lb_score = 0.0
+        self.label = ''
+        self.elements = []
+        self.elements_weight = []
+
+    def analysis(self):
+        # no CV
+        public_lb_rank = get_lb_rank(self.public_lb_score, 'public') if self.public_lb_score else 0
+        private_lb_rank = get_lb_rank(self.private_lb_score, 'private') if self.private_lb_score else 0
+        return [0.0, 0.0, 0.0, self.public_lb_score, public_lb_rank, self.private_lb_score, private_lb_rank]
+
+    def submit(self):
+        pred = None
+        columns = ['ParcelId', '201610', '201611', '201612', '201710', '201711', '201712']
+        for idx, f in enumerate(self.elements):
+            p = pd.read_csv('data/submission_model_%s.csv.gz' % f, header=0, compression='gzip')
+            p = p.loc[:, columns]
+            if pred is None:
+                pred = p * self.elements_weight[idx]
+            else:
+                pred += p * self.elements_weight[idx]
+        pred /= np.sum(self.elements_weight)
+        pred['ParcelId'] = pred['ParcelId'].astype(int)
+        pred.to_csv('data/submission_model_%s.csv.gz' % self.label, index=False, float_format='%.7f', compression='gzip')
+
+
+class ModelDirectBlendingLGB(ModelDirectBlending):
+    def __init__(self):
+        ModelDirectBlending.__init__(self)
+        self.public_lb_score = 0.0641301
+        self.private_lb_score = 0.0748995
+        self.label = 'blending_lgb'
+        self.elements = ['lgb_1step_blending', 'lgb_2step_blending']
+        self.elements_weight = [1.0, 1.0]
+
+
+class ModelDirectBlendingAll(ModelDirectBlending):
+    def __init__(self):
+        ModelDirectBlending.__init__(self)
+        self.public_lb_score = 0.0640158
+        self.private_lb_score = 0.0747848
+        self.label = 'blending_all'
+        self.elements = ['lgb_1step_blending', 'lgb_2step_blending', 'cat_boost_blending']
+        self.elements_weight = [1.0, 1.0, 2.0]
+
+
+
 
 
 
