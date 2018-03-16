@@ -527,6 +527,12 @@ class ModelCatBoostBlending(ModelLGBBlending):
             m.seed = s
             self.model.append(m)
 
+    def analysis(self):
+        # no CV
+        public_lb_rank = get_lb_rank(self.public_lb_score, 'public') if self.public_lb_score else 0
+        private_lb_rank = get_lb_rank(self.private_lb_score, 'private') if self.private_lb_score else 0
+        return [0.0, 0.0, 0.0, self.public_lb_score, public_lb_rank, self.private_lb_score, private_lb_rank]
+
     def submit(self):
         for m in self.model:
             m.target_mon = {10, 11, 12}
