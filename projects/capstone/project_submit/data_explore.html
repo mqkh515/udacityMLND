@@ -11877,12 +11877,14 @@ div#notebook {
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[4]:</div>
+<div class="prompt input_prompt">In&nbsp;[3]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># shape of data</span>
 <span class="n">n_total</span> <span class="o">=</span> <span class="n">prop_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 <span class="n">n_train</span> <span class="o">=</span> <span class="n">train_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;2016 prop_data shape: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">prop_2016</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;2017 prop_data shape: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">prop_2017</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;total_data shape: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">prop_data</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;train_data shape: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">train_data</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
 </pre></div>
@@ -11899,10 +11901,762 @@ div#notebook {
 <div class="prompt"></div>
 
 <div class="output_subarea output_stream output_stdout output_text">
-<pre>total_data shape: (5970434, 58)
+<pre>2016 prop_data shape: (2985217, 58)
+2017 prop_data shape: (2985217, 58)
+total_data shape: (5970434, 58)
 train_data shape: (167888, 63)
 </pre>
 </div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[9]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># display several rows with least missing</span>
+<span class="n">prop_2016_copy</span> <span class="o">=</span> <span class="n">prop_2016</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">prop_2016_copy</span><span class="p">[</span><span class="s1">&#39;missing&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prop_2016_copy</span><span class="o">.</span><span class="n">isnull</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">prop_2016_copy</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">prop_2016_copy</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s1">&#39;missing&#39;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">raw_data_disp</span> <span class="o">=</span> <span class="n">prop_2016_copy</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:</span><span class="mi">5</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+<span class="n">display</span><span class="p">(</span><span class="n">raw_data_disp</span><span class="p">)</span>
+<span class="n">raw_data_disp</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="s1">&#39;data/raw_data_disp.csv&#39;</span><span class="p">)</span>
+<span class="k">del</span> <span class="n">prop_2016_copy</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area">
+<div class="prompt"></div>
+
+
+<div class="output_html rendered_html output_subarea ">
+<div>
+<style>
+    .dataframe thead tr:only-child th {
+        text-align: right;
+    }
+
+    .dataframe thead th {
+        text-align: left;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>parcelid</th>
+      <th>17214945</th>
+      <th>17277746</th>
+      <th>17284901</th>
+      <th>17291058</th>
+      <th>17060678</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>parcelid</th>
+      <td>17214945</td>
+      <td>17277746</td>
+      <td>17284901</td>
+      <td>17291058</td>
+      <td>17060678</td>
+    </tr>
+    <tr>
+      <th>airconditioningtypeid</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>architecturalstyletypeid</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>basementsqft</th>
+      <td>296</td>
+      <td>182</td>
+      <td>2322</td>
+      <td>8516</td>
+      <td>1146</td>
+    </tr>
+    <tr>
+      <th>bathroomcnt</th>
+      <td>2.5</td>
+      <td>3.5</td>
+      <td>1.5</td>
+      <td>9.5</td>
+      <td>6.5</td>
+    </tr>
+    <tr>
+      <th>bedroomcnt</th>
+      <td>3</td>
+      <td>4</td>
+      <td>6</td>
+      <td>6</td>
+      <td>4</td>
+    </tr>
+    <tr>
+      <th>buildingclasstypeid</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>buildingqualitytypeid</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>calculatedbathnbr</th>
+      <td>2.5</td>
+      <td>3.5</td>
+      <td>1.5</td>
+      <td>9.5</td>
+      <td>6.5</td>
+    </tr>
+    <tr>
+      <th>decktypeid</th>
+      <td>66</td>
+      <td>66</td>
+      <td>66</td>
+      <td>66</td>
+      <td>66</td>
+    </tr>
+    <tr>
+      <th>finishedfloor1squarefeet</th>
+      <td>2878</td>
+      <td>1461</td>
+      <td>10245</td>
+      <td>10598</td>
+      <td>4396</td>
+    </tr>
+    <tr>
+      <th>calculatedfinishedsquarefeet</th>
+      <td>4374</td>
+      <td>2380</td>
+      <td>13513</td>
+      <td>18117</td>
+      <td>7051</td>
+    </tr>
+    <tr>
+      <th>finishedsquarefeet12</th>
+      <td>4374</td>
+      <td>2380</td>
+      <td>13513</td>
+      <td>18117</td>
+      <td>7051</td>
+    </tr>
+    <tr>
+      <th>finishedsquarefeet13</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>finishedsquarefeet15</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>finishedsquarefeet50</th>
+      <td>2878</td>
+      <td>1461</td>
+      <td>10245</td>
+      <td>20618</td>
+      <td>4396</td>
+    </tr>
+    <tr>
+      <th>finishedsquarefeet6</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>fips</th>
+      <td>6111</td>
+      <td>6111</td>
+      <td>6111</td>
+      <td>6111</td>
+      <td>6111</td>
+    </tr>
+    <tr>
+      <th>fireplacecnt</th>
+      <td>1</td>
+      <td>1</td>
+      <td>5</td>
+      <td>9</td>
+      <td>9</td>
+    </tr>
+    <tr>
+      <th>fullbathcnt</th>
+      <td>2</td>
+      <td>3</td>
+      <td>1</td>
+      <td>9</td>
+      <td>6</td>
+    </tr>
+    <tr>
+      <th>garagecarcnt</th>
+      <td>2</td>
+      <td>2</td>
+      <td>9</td>
+      <td>13</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>garagetotalsqft</th>
+      <td>484</td>
+      <td>452</td>
+      <td>2697</td>
+      <td>4000</td>
+      <td>623</td>
+    </tr>
+    <tr>
+      <th>hashottuborspa</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>heatingorsystemtypeid</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>latitude</th>
+      <td>34.2418</td>
+      <td>34.1723</td>
+      <td>34.1806</td>
+      <td>34.1994</td>
+      <td>34.4094</td>
+    </tr>
+    <tr>
+      <th>longitude</th>
+      <td>-118.928</td>
+      <td>-118.906</td>
+      <td>-118.809</td>
+      <td>-118.824</td>
+      <td>-119.293</td>
+    </tr>
+    <tr>
+      <th>lotsizesquarefeet</th>
+      <td>55757</td>
+      <td>10710</td>
+      <td>187308</td>
+      <td>709157</td>
+      <td>172063</td>
+    </tr>
+    <tr>
+      <th>poolcnt</th>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>poolsizesum</th>
+      <td>450</td>
+      <td>352</td>
+      <td>3200</td>
+      <td>3600</td>
+      <td>600</td>
+    </tr>
+    <tr>
+      <th>pooltypeid10</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>pooltypeid2</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>pooltypeid7</th>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>propertycountylandusecode</th>
+      <td>1110</td>
+      <td>1110</td>
+      <td>1110</td>
+      <td>1110</td>
+      <td>1110</td>
+    </tr>
+    <tr>
+      <th>propertylandusetypeid</th>
+      <td>261</td>
+      <td>261</td>
+      <td>261</td>
+      <td>261</td>
+      <td>261</td>
+    </tr>
+    <tr>
+      <th>propertyzoningdesc</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>rawcensustractandblock</th>
+      <td>6.11101e+07</td>
+      <td>6.11101e+07</td>
+      <td>6.11101e+07</td>
+      <td>6.11101e+07</td>
+      <td>6.111e+07</td>
+    </tr>
+    <tr>
+      <th>regionidcity</th>
+      <td>51239</td>
+      <td>34278</td>
+      <td>34278</td>
+      <td>34278</td>
+      <td>40110</td>
+    </tr>
+    <tr>
+      <th>regionidcounty</th>
+      <td>2061</td>
+      <td>2061</td>
+      <td>2061</td>
+      <td>2061</td>
+      <td>2061</td>
+    </tr>
+    <tr>
+      <th>regionidneighborhood</th>
+      <td>NaN</td>
+      <td>46736</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>regionidzip</th>
+      <td>97091</td>
+      <td>96351</td>
+      <td>96385</td>
+      <td>96385</td>
+      <td>97098</td>
+    </tr>
+    <tr>
+      <th>roomcnt</th>
+      <td>9</td>
+      <td>8</td>
+      <td>19</td>
+      <td>21</td>
+      <td>10</td>
+    </tr>
+    <tr>
+      <th>storytypeid</th>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+    </tr>
+    <tr>
+      <th>threequarterbathnbr</th>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>typeconstructiontypeid</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>unitcnt</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>yardbuildingsqft17</th>
+      <td>644</td>
+      <td>425</td>
+      <td>4025</td>
+      <td>2557</td>
+      <td>1020</td>
+    </tr>
+    <tr>
+      <th>yardbuildingsqft26</th>
+      <td>150</td>
+      <td>NaN</td>
+      <td>135</td>
+      <td>2015</td>
+      <td>242</td>
+    </tr>
+    <tr>
+      <th>yearbuilt</th>
+      <td>1983</td>
+      <td>1981</td>
+      <td>1991</td>
+      <td>1992</td>
+      <td>1996</td>
+    </tr>
+    <tr>
+      <th>numberofstories</th>
+      <td>2</td>
+      <td>2</td>
+      <td>3</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>fireplaceflag</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>structuretaxvaluedollarcnt</th>
+      <td>301000</td>
+      <td>251105</td>
+      <td>4.41404e+06</td>
+      <td>1.27618e+07</td>
+      <td>1.77706e+06</td>
+    </tr>
+    <tr>
+      <th>taxvaluedollarcnt</th>
+      <td>1.007e+06</td>
+      <td>413715</td>
+      <td>7.03095e+06</td>
+      <td>2.64755e+07</td>
+      <td>2.24153e+06</td>
+    </tr>
+    <tr>
+      <th>assessmentyear</th>
+      <td>2015</td>
+      <td>2015</td>
+      <td>2015</td>
+      <td>2015</td>
+      <td>2015</td>
+    </tr>
+    <tr>
+      <th>landtaxvaluedollarcnt</th>
+      <td>706000</td>
+      <td>162610</td>
+      <td>2.61692e+06</td>
+      <td>1.37136e+07</td>
+      <td>464470</td>
+    </tr>
+    <tr>
+      <th>taxamount</th>
+      <td>10861.9</td>
+      <td>4349.2</td>
+      <td>74370</td>
+      <td>278103</td>
+      <td>24232.7</td>
+    </tr>
+    <tr>
+      <th>taxdelinquencyflag</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>taxdelinquencyyear</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>censustractandblock</th>
+      <td>6.11101e+13</td>
+      <td>6.11101e+13</td>
+      <td>6.11101e+13</td>
+      <td>6.11101e+13</td>
+      <td>6.111e+13</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[10]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">train_2016_raw</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;data/train_2016_v2.csv&#39;</span><span class="p">,</span> <span class="n">parse_dates</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;transactiondate&#39;</span><span class="p">])</span>
+<span class="n">display</span><span class="p">(</span><span class="n">train_2016_raw</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area">
+<div class="prompt"></div>
+
+
+<div class="output_html rendered_html output_subarea ">
+<div>
+<style>
+    .dataframe thead tr:only-child th {
+        text-align: right;
+    }
+
+    .dataframe thead th {
+        text-align: left;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>parcelid</th>
+      <th>logerror</th>
+      <th>transactiondate</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>11016594</td>
+      <td>0.0276</td>
+      <td>2016-01-01</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>14366692</td>
+      <td>-0.1684</td>
+      <td>2016-01-01</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>12098116</td>
+      <td>-0.0040</td>
+      <td>2016-01-01</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>12643413</td>
+      <td>0.0218</td>
+      <td>2016-01-02</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>14432541</td>
+      <td>-0.0050</td>
+      <td>2016-01-02</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[15]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">picked_cols</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;logerror&#39;</span><span class="p">,</span> <span class="s1">&#39;yearbuilt&#39;</span><span class="p">,</span> <span class="s1">&#39;taxvaluedollarcnt&#39;</span><span class="p">,</span> <span class="s1">&#39;roomcnt&#39;</span><span class="p">,</span> <span class="s1">&#39;finishedsquarefeet12&#39;</span><span class="p">,</span> <span class="s1">&#39;latitude&#39;</span><span class="p">]</span>
+<span class="n">des_df</span> <span class="o">=</span> <span class="n">train_data</span><span class="p">[</span><span class="n">picked_cols</span><span class="p">]</span><span class="o">.</span><span class="n">describe</span><span class="p">()</span>
+<span class="n">des_df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="s1">&#39;data/raw_data_describe.csv&#39;</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">des_df</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area">
+<div class="prompt"></div>
+
+
+<div class="output_html rendered_html output_subarea ">
+<div>
+<style>
+    .dataframe thead tr:only-child th {
+        text-align: right;
+    }
+
+    .dataframe thead th {
+        text-align: left;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>logerror</th>
+      <th>yearbuilt</th>
+      <th>taxvaluedollarcnt</th>
+      <th>roomcnt</th>
+      <th>finishedsquarefeet12</th>
+      <th>latitude</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>count</th>
+      <td>167888.000000</td>
+      <td>166828.000000</td>
+      <td>1.678520e+05</td>
+      <td>167854.000000</td>
+      <td>159519.000000</td>
+      <td>167854.000000</td>
+    </tr>
+    <tr>
+      <th>mean</th>
+      <td>0.013906</td>
+      <td>1968.569311</td>
+      <td>4.726833e+05</td>
+      <td>1.477480</td>
+      <td>1752.326939</td>
+      <td>34.006778</td>
+    </tr>
+    <tr>
+      <th>std</th>
+      <td>0.165706</td>
+      <td>23.777202</td>
+      <td>6.028372e+05</td>
+      <td>2.821496</td>
+      <td>921.360898</td>
+      <td>0.265118</td>
+    </tr>
+    <tr>
+      <th>min</th>
+      <td>-4.655420</td>
+      <td>1824.000000</td>
+      <td>2.200000e+01</td>
+      <td>0.000000</td>
+      <td>2.000000</td>
+      <td>33.339295</td>
+    </tr>
+    <tr>
+      <th>25%</th>
+      <td>-0.025300</td>
+      <td>1953.000000</td>
+      <td>2.026522e+05</td>
+      <td>0.000000</td>
+      <td>1172.000000</td>
+      <td>33.812924</td>
+    </tr>
+    <tr>
+      <th>50%</th>
+      <td>0.006000</td>
+      <td>1970.000000</td>
+      <td>3.500000e+05</td>
+      <td>0.000000</td>
+      <td>1520.000000</td>
+      <td>34.021700</td>
+    </tr>
+    <tr>
+      <th>75%</th>
+      <td>0.039200</td>
+      <td>1987.000000</td>
+      <td>5.540020e+05</td>
+      <td>0.000000</td>
+      <td>2065.000000</td>
+      <td>34.173420</td>
+    </tr>
+    <tr>
+      <th>max</th>
+      <td>5.262999</td>
+      <td>2016.000000</td>
+      <td>4.906124e+07</td>
+      <td>18.000000</td>
+      <td>21929.000000</td>
+      <td>34.818767</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
 </div>
 
 </div>
